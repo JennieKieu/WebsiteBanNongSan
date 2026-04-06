@@ -1,0 +1,34 @@
+# Dependencies
+node_modules/
+
+# Secrets & local env (never commit)
+.env
+.env.local
+.env.*.local
+**/.env
+!**/.env.example
+
+# Build output
+dist/
+client/dist/
+**/dist/
+
+# Logs & OS
+*.log
+.DS_Store
+Thumbs.db
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# Test / coverage
+coverage/
+
+# .NET build artifacts (nếu có thư mục backend)
+**/bin/
+**/obj/
+*.user
+*.suo
