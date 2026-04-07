@@ -37,7 +37,12 @@ export default function LoginPage() {
       setUser(res.data.data.user);
       navigate(res.data.data.user.role === "Admin" ? "/admin" : "/");
     } catch (err: any) {
-      setError(err.response?.data?.message || "Đăng nhập / đăng ký thất bại");
+      const msg =
+        err.response?.data?.message ||
+        (err.code === "ECONNABORTED" ? "Hết thời gian chờ máy chủ (thử lại hoặc kiểm tra API)." : null) ||
+        "Đăng nhập / đăng ký thất bại";
+      setError(msg);
+      if (isRegister) toast.error(msg);
     } finally {
       setLoading(false);
     }

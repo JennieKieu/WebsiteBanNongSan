@@ -53,6 +53,23 @@ Dán vào biến `MONGODB_URI` trên Render.
 
 ---
 
+## Gửi email OTP (SMTP / Gmail)
+
+Đăng ký và quên mật khẩu cần cấu hình **SMTP** trên web service API (ví dụ `naturalstore-api`):
+
+| Biến | Giá trị thường dùng |
+|------|---------------------|
+| `SMTP_HOST` | `smtp.gmail.com` |
+| `SMTP_PORT` | `587` (hoặc `465` nếu dùng SSL trực tiếp) |
+| `SMTP_USER` | Địa chỉ Gmail dùng để gửi mail |
+| `SMTP_PASS` | **Mật ứng dụng** 16 ký tự (Google Account → Bảo mật → Xác minh 2 bước → Mật ứng dụng). Có thể dán có hoặc không có dấu cách giữa các nhóm ký tự. |
+
+Trên Render: **Environment** của API → thêm đủ bốn biến → **Save** → **Manual Deploy**. Nếu thiếu biến, API sẽ trả lỗi rõ ràng; kết nối SMTP có **giới hạn thời gian chờ** để tránh giao diện bị treo “Đang xử lý…” vô hạn.
+
+Nếu vẫn không gửi được: mở **Logs** của API, tìm dòng `[Email]`; kiểm tra lại mật ứng dụng Gmail (không dùng mật khẩu đăng nhập thường).
+
+---
+
 ## Seed dữ liệu mẫu (tùy chọn)
 
 **Cách 1 — local:** Trong `server/.env` đặt `MONGODB_URI` trỏ Atlas, chạy `npm run seed` trong thư mục `server`.

@@ -4,7 +4,7 @@ const asyncHandler = require("../utils/asyncHandler");
 const { signAccessToken, signRefreshToken, verifyRefreshToken } = require("../utils/jwt");
 const { User, OtpVerification } = require("../models");
 const { cleanText } = require("./helpers");
-const { sendVerifyOtp, sendResetPasswordOtp } = require("../services/email.service");
+const { sendVerifyOtp, sendResetPasswordOtp, getSmtpFailureInfo } = require("../services/email.service");
 
 function createTokens(user) {
   const payload = { userId: user._id.toString(), role: user.role };
@@ -40,10 +40,15 @@ exports.register = asyncHandler(async (req, res) => {
   try {
     await sendVerifyOtp(email, otp);
   } catch (mailErr) {
-    console.error("[Email] Gửi OTP xác thực thất bại:", mailErr.message);
-    // Xoá bản ghi tạm nếu không gửi được mail
+    console.error("[Email] Gửi OTP xác thực thất bại:", {
+      code: mailErr.code,
+      responseCode: mailErr.responseCode,
+      command: mailErr.command,
+      message: mailErr.message,
+    });
     await OtpVerification.deleteMany({ email, type: "VERIFY_EMAIL" });
-    throw new AppError("MAIL_ERROR", "Không thể gửi email xác thực, vui lòng thử lại sau.", 500);
+    const info = getSmtpFailureInfo(mailErr);
+    throw new AppError(info.code, info.message, info.status);
   }
 
   res.status(201).json({
@@ -184,8 +189,14 @@ exports.forgotPassword = asyncHandler(async (req, res) => {
   try {
     await sendResetPasswordOtp(email, otp);
   } catch (mailErr) {
-    console.error("[Email] Gửi OTP đặt lại mật khẩu thất bại:", mailErr.message);
-    throw new AppError("MAIL_ERROR", "Không thể gửi email, vui lòng thử lại sau.", 500);
+    console.error("[Email] Gửi OTP đặt lại mật khẩu thất bại:", {
+      code: mailErr.code,
+      responseCode: mailErr.responseCode,
+      message: mailErr.message,
+    });
+    await OtpVerification.deleteMany({ email, type: "RESET_PASSWORD" });
+    const info = getSmtpFailureInfo(mailErr);
+    throw new AppError(info.code, info.message, info.status);
   }
 
   res.json({ message: "Nếu email tồn tại, mã OTP đã được gửi đến hộp thư của bạn." });

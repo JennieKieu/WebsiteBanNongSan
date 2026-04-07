@@ -2,6 +2,8 @@ import axios from "axios";
 
 const http = axios.create({
   baseURL: import.meta.env.VITE_API_BASE_URL || "http://localhost:5000/api/v1",
+  /** Tránh treo “Đang xử lý…” vô hạn khi API (ví dụ gửi SMTP) chậm hoặc không phản hồi */
+  timeout: 60_000,
 });
 
 http.interceptors.request.use((config) => {
