@@ -18,12 +18,17 @@ http.interceptors.response.use(
       original._retry = true;
       const refreshToken = localStorage.getItem("refreshToken");
       if (refreshToken) {
-        const refreshRes = await axios.post(`${http.defaults.baseURL}/auth/refresh-token`, { refreshToken });
-        const { accessToken, refreshToken: nextRefresh } = refreshRes.data.data;
-        localStorage.setItem("accessToken", accessToken);
-        localStorage.setItem("refreshToken", nextRefresh);
-        original.headers.Authorization = `Bearer ${accessToken}`;
-        return http(original);
+        try {
+          const refreshRes = await axios.post(`${http.defaults.baseURL}/auth/refresh-token`, { refreshToken });
+          const { accessToken, refreshToken: nextRefresh } = refreshRes.data.data;
+          localStorage.setItem("accessToken", accessToken);
+          localStorage.setItem("refreshToken", nextRefresh);
+          original.headers.Authorization = `Bearer ${accessToken}`;
+          return http(original);
+        } catch {
+          localStorage.removeItem("accessToken");
+          localStorage.removeItem("refreshToken");
+        }
       }
     }
     return Promise.reject(error);

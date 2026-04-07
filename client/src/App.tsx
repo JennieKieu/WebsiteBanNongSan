@@ -1,3 +1,4 @@
+import { useEffect } from "react";
 import { Navigate, Outlet, Route, Routes } from "react-router-dom";
 import MainLayout from "./layouts/MainLayout";
 import AdminLayout from "./layouts/AdminLayout";
@@ -31,6 +32,21 @@ function RequireAdmin() {
 }
 
 export default function App() {
+  const hydrated = useAuthStore((s) => s.hydrated);
+  const hydrate = useAuthStore((s) => s.hydrate);
+
+  useEffect(() => {
+    void hydrate();
+  }, [hydrate]);
+
+  if (!hydrated) {
+    return (
+      <div className="auth-page" style={{ justifyContent: "center", minHeight: "50vh" }}>
+        <p className="text-muted">Đang tải phiên đăng nhập…</p>
+      </div>
+    );
+  }
+
   return (
     <Routes>
       <Route path="/login" element={<LoginPage />} />

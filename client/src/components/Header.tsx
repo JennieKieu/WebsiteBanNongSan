@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { Link, useNavigate, useSearchParams } from "react-router-dom";
+import { Link, useLocation, useNavigate, useSearchParams } from "react-router-dom";
 import {
   HiOutlineShoppingCart,
   HiOutlineUser,
@@ -10,6 +10,7 @@ import {
   HiOutlineClipboardDocumentList,
   HiOutlineUserCircle,
   HiOutlineChatBubbleLeftRight,
+  HiOutlineHeart,
 } from "react-icons/hi2";
 import { RiLeafLine, RiPlantLine, RiSeedlingLine, RiApps2Line, RiShieldCheckLine } from "react-icons/ri";
 import {
@@ -39,6 +40,7 @@ function getCatIcon(slug: string) {
 
 export default function Header() {
   const navigate = useNavigate();
+  const location = useLocation();
   const [params] = useSearchParams();
   const keyword = params.get("keyword") ?? "";
   const { user, logout } = useAuthStore();
@@ -48,6 +50,12 @@ export default function Header() {
   const fetchCart = useCartStore((s) => s.fetch);
   const clearCart = useCartStore((s) => s.clear);
   const cartTotalQty = useCartStore((s) => s.totalQty);
+
+  const [mobileOpen, setMobileOpen] = useState(false);
+  const [userMenuOpen, setUserMenuOpen] = useState(false);
+  const userMenuRef = useRef<HTMLDivElement>(null);
+
+  const { data: categories } = useApi<{ _id: string; name: string; slug: string }[]>("/categories", []);
 
   useEffect(() => {
     if (user) {
@@ -59,10 +67,23 @@ export default function Header() {
     }
   }, [user, wishlistLoaded, fetchWishlist, clearWishlist, fetchCart, clearCart]);
 
-  const { data: categories } = useApi<{ _id: string; name: string; slug: string }[]>("/categories", []);
-  const [mobileOpen, setMobileOpen] = useState(false);
-  const [userMenuOpen, setUserMenuOpen] = useState(false);
-  const userMenuRef = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    setMobileOpen(false);
+  }, [location.pathname, location.search]);
+
+  useEffect(() => {
+    if (!mobileOpen) return;
+    const prev = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    function onKey(e: KeyboardEvent) {
+      if (e.key === "Escape") setMobileOpen(false);
+    }
+    window.addEventListener("keydown", onKey);
+    return () => {
+      document.body.style.overflow = prev;
+      window.removeEventListener("keydown", onKey);
+    };
+  }, [mobileOpen]);
 
   function handleSearch(e: React.FormEvent) {
     e.preventDefault();
@@ -132,6 +153,7 @@ export default function Header() {
 
   const mobileUserBlock = user ? (
     <>
+      <p className="mobile-nav-section-title">Tài khoản</p>
       <Link to="/account" className="nav-link" onClick={closeAll}>
         <HiOutlineUserCircle /> Tài khoản ({user.name?.split(" ").pop()})
       </Link>
@@ -155,11 +177,7 @@ export default function Header() {
         <HiOutlineArrowRightOnRectangle /> Đăng xuất
       </button>
     </>
-  ) : (
-    <Link to="/login" className="nav-link" onClick={closeAll}>
-      <HiOutlineUser /> Đăng nhập
-    </Link>
-  );
+  ) : null;
 
   return (
     <>
@@ -260,23 +278,41 @@ export default function Header() {
       <div
         className={`mobile-nav ${mobileOpen ? "open" : ""}`}
         onClick={() => setMobileOpen(false)}
+        role="presentation"
       >
-        <div className="mobile-nav-panel" onClick={(e) => e.stopPropagation()}>
+        <div
+          className="mobile-nav-panel"
+          onClick={(e) => e.stopPropagation()}
+          role="dialog"
+          aria-modal="true"
+          aria-label="Menu điều hướng"
+        >
           <div className="mobile-nav-close">
             <button type="button" className="btn-ghost" onClick={() => setMobileOpen(false)} aria-label="Đóng menu">
               <HiOutlineXMark style={{ fontSize: "1.5rem" }} />
             </button>
           </div>
 
-          <form onSubmit={handleSearch} style={{ marginBottom: 16 }}>
-            <div style={{ display: "flex", gap: 8 }}>
+          {!user && (
+            <div className="mobile-nav-guest-banner">
+              <p className="mobile-nav-guest-banner__text">
+                Đăng nhập để dùng giỏ hàng, yêu thích và theo dõi đơn hàng.
+              </p>
+              <Link to="/login" className="btn mobile-nav-guest-banner__btn" onClick={closeAll}>
+                <HiOutlineUser /> Đăng nhập
+              </Link>
+            </div>
+          )}
+
+          <form onSubmit={handleSearch} className="mobile-nav-search">
+            <div className="mobile-nav-search__row">
               <input
                 name="keyword"
                 defaultValue={keyword}
                 placeholder="Tìm nông sản..."
-                style={{ flex: 1 }}
+                aria-label="Tìm kiếm sản phẩm"
               />
-              <button type="submit" className="btn btn-sm">
+              <button type="submit" className="btn btn-sm" aria-label="Tìm kiếm">
                 <HiOutlineMagnifyingGlass />
               </button>
             </div>
@@ -297,21 +333,24 @@ export default function Header() {
             </Link>
           ))}
 
-          <div style={{ borderTop: "1px solid var(--c-border)", margin: "12px 0" }} />
+          <div className="mobile-nav-divider" />
+          <p className="mobile-nav-section-title">Khác</p>
           <Link to="/contact" className="nav-link" onClick={closeAll}>
             <HiOutlineChatBubbleLeftRight /> Liên hệ
           </Link>
-          <Link to="/wishlist" className="nav-link" onClick={closeAll}>
-            Yêu thích
+          <Link to={user ? "/wishlist" : "/login"} className="nav-link" onClick={closeAll}>
+            <HiOutlineHeart /> Yêu thích
+            {!user && <span className="mobile-nav-link-note"> (cần đăng nhập)</span>}
           </Link>
-          <Link to="/cart" className="nav-link" onClick={closeAll}>
-            <HiOutlineShoppingCart />
+          <Link to={user ? "/cart" : "/login"} className="nav-link" onClick={closeAll}>
+            <HiOutlineShoppingCart />{" "}
             {user && cartTotalQty > 0
               ? `Giỏ hàng (${cartTotalQty > 99 ? "99+" : cartTotalQty})`
               : "Giỏ hàng"}
+            {!user && <span className="mobile-nav-link-note"> (cần đăng nhập)</span>}
           </Link>
 
-          <div style={{ borderTop: "1px solid var(--c-border)", margin: "12px 0" }} />
+          {user && <div className="mobile-nav-divider" />}
           {mobileUserBlock}
         </div>
       </div>

@@ -125,7 +125,7 @@ type ProductRow = {
   supplier: string;
   certifications?: string[];
   unit: string;
-  price: number;
+  price?: number | null;
   salePrice?: number | null;
   isActive?: boolean;
   updatedAt?: string;
@@ -284,7 +284,7 @@ export default function AdminResourcePage() {
       supplier: p.supplier || "",
       certifications: (p.certifications || []).join(", "),
       unit: p.unit,
-      price: p.price,
+      price: p.price ?? "",
       salePrice: p.salePrice ?? "",
       isActive: p.isActive !== false,
     });
@@ -1016,13 +1016,18 @@ export default function AdminResourcePage() {
                   <td>
                     {p.salePrice ? (
                       <>
-                        <strong style={{ color: "var(--c-primary)" }}>{p.salePrice.toLocaleString("vi-VN")} đ</strong>
-                        <span className="text-muted" style={{ textDecoration: "line-through", marginLeft: 8, fontSize: "0.8125rem" }}>
-                          {p.price.toLocaleString("vi-VN")}
+                        <strong style={{ color: "var(--c-primary)" }}>
+                          {Number(p.salePrice).toLocaleString("vi-VN")} đ
+                        </strong>
+                        <span
+                          className="text-muted"
+                          style={{ textDecoration: "line-through", marginLeft: 8, fontSize: "0.8125rem" }}
+                        >
+                          {Number(p.price ?? 0).toLocaleString("vi-VN")}
                         </span>
                       </>
                     ) : (
-                      <strong>{p.price.toLocaleString("vi-VN")} đ</strong>
+                      <strong>{Number(p.price ?? 0).toLocaleString("vi-VN")} đ</strong>
                     )}
                   </td>
                   <td>
@@ -1265,7 +1270,9 @@ export default function AdminResourcePage() {
                 <tr key={c._id}>
                   <td style={{ fontWeight: 700 }}>{c.code}</td>
                   <td>
-                    {c.discountType === "PERCENT" ? `${c.discountValue}%` : `${c.discountValue.toLocaleString("vi-VN")} đ`}
+                    {c.discountType === "PERCENT"
+                      ? `${c.discountValue ?? 0}%`
+                      : `${Number(c.discountValue ?? 0).toLocaleString("vi-VN")} đ`}
                   </td>
                   <td>
                     {c.usedCount ?? 0} / {c.usageLimit}

@@ -98,7 +98,7 @@ export default function AdminLayout() {
         />
       )}
 
-      <div style={{ flex: 1, display: "flex", flexDirection: "column", minWidth: 0 }}>
+      <div className="admin-workspace">
         <div className="admin-topbar">
           <button className="admin-toggle-btn admin-toggle-mobile" onClick={() => setSidebarOpen(true)} aria-label="Mở menu">
             <RiMenuLine />
