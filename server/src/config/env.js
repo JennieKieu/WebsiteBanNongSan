@@ -16,6 +16,18 @@ const env = {
   smtpPort: Number(process.env.SMTP_PORT || 587),
   smtpUser: process.env.SMTP_USER || "",
   smtpPass: process.env.SMTP_PASS || "",
+  /**
+   * Ưu tiên gửi mail (HTTPS): Brevo → Mailjet → Resend → SMTP
+   */
+  brevoApiKey: (process.env.BREVO_API_KEY || "").trim(),
+  brevoSenderName: (process.env.BREVO_SENDER_NAME || "Natural Store").trim(),
+  brevoSenderEmail: (process.env.BREVO_SENDER_EMAIL || "").trim(),
+  mailjetApiKey: (process.env.MAILJET_API_KEY || "").trim(),
+  mailjetSecretKey: (process.env.MAILJET_SECRET_KEY || "").trim(),
+  mailjetSenderName: (process.env.MAILJET_SENDER_NAME || "Natural Store").trim(),
+  mailjetSenderEmail: (process.env.MAILJET_SENDER_EMAIL || "").trim(),
+  resendApiKey: (process.env.RESEND_API_KEY || "").trim(),
+  emailFrom: (process.env.EMAIL_FROM || "").trim(),
   cloudName: process.env.CLOUDINARY_CLOUD_NAME || "",
   cloudApiKey: process.env.CLOUDINARY_API_KEY || "",
   cloudApiSecret: process.env.CLOUDINARY_API_SECRET || "",

@@ -8,14 +8,156 @@ function smtpPassNormalized() {
   return String(env.smtpPass || "").replace(/\s+/g, "");
 }
 
-function assertSmtpConfigured() {
+function usesBrevo() {
+  return Boolean(env.brevoApiKey) && Boolean(env.brevoSenderEmail);
+}
+
+function usesMailjet() {
+  return (
+    Boolean(env.mailjetApiKey) &&
+    Boolean(env.mailjetSecretKey) &&
+    Boolean(env.mailjetSenderEmail)
+  );
+}
+
+function usesResend() {
+  return Boolean(env.resendApiKey);
+}
+
+/** Ưu tiên: Brevo → Mailjet → Resend → SMTP */
+function assertEmailConfigured() {
+  if (usesBrevo() || usesMailjet() || usesResend()) return;
   const pass = smtpPassNormalized();
   if (!env.smtpHost?.trim() || !env.smtpUser?.trim() || !pass) {
     const err = new Error(
-      "SMTP chưa cấu hình đầy đủ. Trên Render: thêm SMTP_HOST, SMTP_USER, SMTP_PASS (mật ứng dụng Gmail 16 ký tự)."
+      "Chưa cấu hình gửi email. Trên Render: BREVO_* hoặc MAILJET_* hoặc RESEND_API_KEY hoặc SMTP đầy đủ."
     );
     err.code = "SMTP_NOT_CONFIGURED";
     throw err;
+  }
+}
+
+/**
+ * Gửi qua Brevo Transactional Email API (HTTPS).
+ * Không cần domain — chỉ cần xác minh địa chỉ email người gửi trên Brevo.
+ * @see https://developers.brevo.com/reference/sendtransacemail
+ */
+async function sendViaBrevo({ to, subject, html }) {
+  const ac = new AbortController();
+  const timer = setTimeout(() => ac.abort(), 25_000);
+  try {
+    const res = await fetch("https://api.brevo.com/v3/smtp/email", {
+      method: "POST",
+      headers: {
+        "api-key": env.brevoApiKey,
+        "Content-Type": "application/json",
+        Accept: "application/json",
+      },
+      body: JSON.stringify({
+        sender: {
+          name: env.brevoSenderName || "Natural Store",
+          email: env.brevoSenderEmail,
+        },
+        to: [{ email: to }],
+        subject,
+        htmlContent: html,
+      }),
+      signal: ac.signal,
+    });
+    if (!res.ok) {
+      const data = await res.json().catch(() => ({}));
+      const msg = data.message || `HTTP ${res.status}`;
+      const e = new Error(String(msg));
+      e.code = "EBREVO";
+      e.status = res.status;
+      throw e;
+    }
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
+/**
+ * Mailjet Send API v3.1 (HTTPS). Gói Free: giới hạn theo Mailjet (thường vài nghìn email/tháng).
+ * Cần xác minh địa chỉ người gửi trong dashboard (không bắt buộc domain).
+ * @see https://dev.mailjet.com/email/guides/send-api-v31/#send-a-basic-email
+ */
+async function sendViaMailjet({ to, subject, html }) {
+  const auth = Buffer.from(`${env.mailjetApiKey}:${env.mailjetSecretKey}`).toString("base64");
+  const ac = new AbortController();
+  const timer = setTimeout(() => ac.abort(), 25_000);
+  try {
+    const res = await fetch("https://api.mailjet.com/v3.1/send", {
+      method: "POST",
+      headers: {
+        Authorization: `Basic ${auth}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        Messages: [
+          {
+            From: {
+              Email: env.mailjetSenderEmail,
+              Name: env.mailjetSenderName || "Natural Store",
+            },
+            To: [{ Email: to }],
+            Subject: subject,
+            HTMLPart: html,
+          },
+        ],
+      }),
+      signal: ac.signal,
+    });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) {
+      const msgs = data.Messages?.[0]?.Errors || data.ErrorMessage || [];
+      const msg =
+        (Array.isArray(msgs) && msgs[0]?.ErrorMessage) ||
+        (typeof data.ErrorMessage === "string" ? data.ErrorMessage : null) ||
+        `HTTP ${res.status}`;
+      const e = new Error(String(msg));
+      e.code = "EMAILJET";
+      e.status = res.status;
+      throw e;
+    }
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
+/**
+ * Gửi qua Resend API (HTTPS) — không qua cổng SMTP, thường ổn định trên Render.
+ * @see https://resend.com/docs/api-reference/emails/send-email
+ */
+async function sendViaResend({ to, subject, html }) {
+  const key = env.resendApiKey;
+  const from =
+    env.emailFrom ||
+    "Natural Store <onboarding@resend.dev>";
+
+  const ac = new AbortController();
+  const timer = setTimeout(() => ac.abort(), 25_000);
+  try {
+    const res = await fetch("https://api.resend.com/emails", {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${key}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({ from, to: [to], subject, html }),
+      signal: ac.signal,
+    });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) {
+      const msg = data.message || data.name || `HTTP ${res.status}`;
+      const e = new Error(String(msg));
+      e.code = "ERESEND";
+      e.status = res.status;
+      throw e;
+    }
+    return data;
+  } finally {
+    clearTimeout(timer);
   }
 }
 
@@ -49,7 +191,11 @@ function buildTransportOptions() {
     socketTimeout: 60_000,
   };
 
-  if (isGmailSmtpHost()) {
+  /**
+   * Gmail: mặc định dùng preset (thường là 465 SSL).
+   * Nếu bạn đặt SMTP_PORT=587 → ép dùng STARTTLS trên 587 (chuẩn submission).
+   */
+  if (isGmailSmtpHost() && env.smtpPort !== 587) {
     return {
       service: "gmail",
       auth: { user, pass },
@@ -73,8 +219,40 @@ function buildTransportOptions() {
   };
 }
 
+function htmlVerifyOtp(otp) {
+  return `
+      <div style="font-family:Arial,sans-serif;max-width:480px;margin:0 auto;padding:24px;border:1px solid #e0e0e0;border-radius:8px;">
+        <h2 style="color:#2e7d32;margin-bottom:8px;">Natural Store 🌿</h2>
+        <p style="color:#555;">Xin chào,</p>
+        <p style="color:#555;">Đây là mã OTP xác thực tài khoản của bạn:</p>
+        <div style="text-align:center;margin:24px 0;">
+          <span style="display:inline-block;font-size:36px;font-weight:bold;letter-spacing:12px;color:#2e7d32;background:#f1f8e9;padding:16px 32px;border-radius:8px;">${otp}</span>
+        </div>
+        <p style="color:#888;font-size:13px;">Mã có hiệu lực trong <strong>10 phút</strong>. Vui lòng không chia sẻ mã này với bất kỳ ai.</p>
+        <hr style="border:none;border-top:1px solid #e0e0e0;margin:24px 0;"/>
+        <p style="color:#bbb;font-size:12px;">Nếu bạn không thực hiện yêu cầu này, hãy bỏ qua email này.</p>
+      </div>
+    `;
+}
+
+function htmlResetPasswordOtp(otp) {
+  return `
+      <div style="font-family:Arial,sans-serif;max-width:480px;margin:0 auto;padding:24px;border:1px solid #e0e0e0;border-radius:8px;">
+        <h2 style="color:#2e7d32;margin-bottom:8px;">Natural Store 🌿</h2>
+        <p style="color:#555;">Xin chào,</p>
+        <p style="color:#555;">Bạn vừa yêu cầu đặt lại mật khẩu. Đây là mã OTP của bạn:</p>
+        <div style="text-align:center;margin:24px 0;">
+          <span style="display:inline-block;font-size:36px;font-weight:bold;letter-spacing:12px;color:#e65100;background:#fff3e0;padding:16px 32px;border-radius:8px;">${otp}</span>
+        </div>
+        <p style="color:#888;font-size:13px;">Mã có hiệu lực trong <strong>10 phút</strong>. Vui lòng không chia sẻ mã này với bất kỳ ai.</p>
+        <hr style="border:none;border-top:1px solid #e0e0e0;margin:24px 0;"/>
+        <p style="color:#bbb;font-size:12px;">Nếu bạn không thực hiện yêu cầu này, hãy bỏ qua email này.</p>
+      </div>
+    `;
+}
+
 /**
- * Chuyển lỗi nodemailer → HTTP status + message tiếng Việt (để client không chỉ thấy "500").
+ * Chuyển lỗi gửi mail → HTTP status + message tiếng Việt
  */
 function getSmtpFailureInfo(err) {
   if (!err) {
@@ -84,12 +262,40 @@ function getSmtpFailureInfo(err) {
       message: "Gửi email thất bại (không rõ lý do).",
     };
   }
+  if (err.name === "AbortError") {
+    return {
+      status: 503,
+      code: "MAIL_ERROR",
+      message: "Gửi email hết thời gian chờ. Thử lại sau.",
+    };
+  }
+  if (err.code === "EBREVO") {
+    return {
+      status: 500,
+      code: "MAIL_ERROR",
+      message: `Brevo từ chối gửi (${err.message}). Kiểm tra API key và BREVO_SENDER_EMAIL đã xác minh trên brevo.com.`,
+    };
+  }
+  if (err.code === "EMAILJET") {
+    return {
+      status: 500,
+      code: "MAIL_ERROR",
+      message: `Mailjet: ${err.message}. Kiểm tra MAILJET_API_KEY, MAILJET_SECRET_KEY và MAILJET_SENDER_EMAIL đã xác minh trên mailjet.com.`,
+    };
+  }
   if (err.code === "SMTP_NOT_CONFIGURED") {
     return {
       status: 503,
       code: "MAIL_ERROR",
       message:
-        "Máy chủ chưa cấu hình gửi email (SMTP). Trên Render: Environment → thêm SMTP_HOST, SMTP_PORT, SMTP_USER, SMTP_PASS (mật ứng dụng Gmail 16 ký tự).",
+        "Chưa cấu hình gửi email: trên Render thêm BREVO_* / MAILJET_* / RESEND_API_KEY hoặc SMTP đầy đủ.",
+    };
+  }
+  if (err.code === "ERESEND") {
+    return {
+      status: 500,
+      code: "MAIL_ERROR",
+      message: `Resend: ${err.message}. Kiểm tra API key; domain gửi (EMAIL_FROM) phải đã xác minh trên resend.com.`,
     };
   }
 
@@ -110,7 +316,7 @@ function getSmtpFailureInfo(err) {
       status: 503,
       code: "MAIL_ERROR",
       message:
-        "Không kết nối được máy chủ SMTP (timeout). Với Gmail: đặt SMTP_HOST=smtp.gmail.com (code đã dùng cổng 465 SSL). Đảm bảo SMTP_USER và mật ứng dụng Gmail đúng. Nếu vẫn lỗi, thử dịch vụ gửi mail khác (Resend, Brevo).",
+        "Không kết nối được SMTP (timeout). Trên Render nên dùng RESEND_API_KEY thay vì Gmail SMTP — xem DEPLOY.md.",
     };
   }
 
@@ -118,7 +324,7 @@ function getSmtpFailureInfo(err) {
     return {
       status: 503,
       code: "MAIL_ERROR",
-      message: "Lỗi TLS khi gửi mail. Thử đặt SMTP_PORT=465 (SSL) trên Render.",
+      message: "Lỗi TLS khi gửi mail qua SMTP. Thử SMTP_PORT=465 hoặc chuyển sang Resend (RESEND_API_KEY).",
     };
   }
 
@@ -144,26 +350,30 @@ function getSmtpFailureInfo(err) {
  * Gửi OTP xác thực email khi đăng ký tài khoản
  */
 async function sendVerifyOtp(toEmail, otp) {
-  assertSmtpConfigured();
+  assertEmailConfigured();
+  const subject = "Mã xác thực tài khoản Natural Store";
+  const html = htmlVerifyOtp(otp);
+
+  if (usesBrevo()) {
+    await sendViaBrevo({ to: toEmail, subject, html });
+    return;
+  }
+  if (usesMailjet()) {
+    await sendViaMailjet({ to: toEmail, subject, html });
+    return;
+  }
+  if (usesResend()) {
+    await sendViaResend({ to: toEmail, subject, html });
+    return;
+  }
+
   const transporter = getTransporter();
   try {
     await transporter.sendMail({
       from: `"Natural Store" <${env.smtpUser}>`,
       to: toEmail,
-      subject: "Mã xác thực tài khoản Natural Store",
-      html: `
-      <div style="font-family:Arial,sans-serif;max-width:480px;margin:0 auto;padding:24px;border:1px solid #e0e0e0;border-radius:8px;">
-        <h2 style="color:#2e7d32;margin-bottom:8px;">Natural Store 🌿</h2>
-        <p style="color:#555;">Xin chào,</p>
-        <p style="color:#555;">Đây là mã OTP xác thực tài khoản của bạn:</p>
-        <div style="text-align:center;margin:24px 0;">
-          <span style="display:inline-block;font-size:36px;font-weight:bold;letter-spacing:12px;color:#2e7d32;background:#f1f8e9;padding:16px 32px;border-radius:8px;">${otp}</span>
-        </div>
-        <p style="color:#888;font-size:13px;">Mã có hiệu lực trong <strong>10 phút</strong>. Vui lòng không chia sẻ mã này với bất kỳ ai.</p>
-        <hr style="border:none;border-top:1px solid #e0e0e0;margin:24px 0;"/>
-        <p style="color:#bbb;font-size:12px;">Nếu bạn không thực hiện yêu cầu này, hãy bỏ qua email này.</p>
-      </div>
-    `,
+      subject,
+      html,
     });
   } catch (e) {
     resetTransporter();
@@ -175,26 +385,30 @@ async function sendVerifyOtp(toEmail, otp) {
  * Gửi OTP đặt lại mật khẩu
  */
 async function sendResetPasswordOtp(toEmail, otp) {
-  assertSmtpConfigured();
+  assertEmailConfigured();
+  const subject = "Đặt lại mật khẩu Natural Store";
+  const html = htmlResetPasswordOtp(otp);
+
+  if (usesBrevo()) {
+    await sendViaBrevo({ to: toEmail, subject, html });
+    return;
+  }
+  if (usesMailjet()) {
+    await sendViaMailjet({ to: toEmail, subject, html });
+    return;
+  }
+  if (usesResend()) {
+    await sendViaResend({ to: toEmail, subject, html });
+    return;
+  }
+
   const transporter = getTransporter();
   try {
     await transporter.sendMail({
       from: `"Natural Store" <${env.smtpUser}>`,
       to: toEmail,
-      subject: "Đặt lại mật khẩu Natural Store",
-      html: `
-      <div style="font-family:Arial,sans-serif;max-width:480px;margin:0 auto;padding:24px;border:1px solid #e0e0e0;border-radius:8px;">
-        <h2 style="color:#2e7d32;margin-bottom:8px;">Natural Store 🌿</h2>
-        <p style="color:#555;">Xin chào,</p>
-        <p style="color:#555;">Bạn vừa yêu cầu đặt lại mật khẩu. Đây là mã OTP của bạn:</p>
-        <div style="text-align:center;margin:24px 0;">
-          <span style="display:inline-block;font-size:36px;font-weight:bold;letter-spacing:12px;color:#e65100;background:#fff3e0;padding:16px 32px;border-radius:8px;">${otp}</span>
-        </div>
-        <p style="color:#888;font-size:13px;">Mã có hiệu lực trong <strong>10 phút</strong>. Vui lòng không chia sẻ mã này với bất kỳ ai.</p>
-        <hr style="border:none;border-top:1px solid #e0e0e0;margin:24px 0;"/>
-        <p style="color:#bbb;font-size:12px;">Nếu bạn không thực hiện yêu cầu này, hãy bỏ qua email này.</p>
-      </div>
-    `,
+      subject,
+      html,
     });
   } catch (e) {
     resetTransporter();

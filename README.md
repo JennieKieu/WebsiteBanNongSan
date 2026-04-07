@@ -49,6 +49,25 @@ E-commerce nông sản gồm `server` (Express + MongoDB) và `client` (React + 
 
 ## 3) Cấu hình môi trường
 
+### 3.1. Môi trường cài đặt hệ thống
+
+**Yêu cầu phần mềm**
+
+- **Ngôn ngữ:** JavaScript (backend — Node.js), TypeScript (frontend — React).
+- **Framework / công cụ build:**
+  - **Frontend:** React 19, **Vite** 5, React Router — SPA (không dùng Next.js).
+  - **Backend:** **Express.js** 5 (REST API) — không dùng NestJS.
+- **Cơ sở dữ liệu:** **MongoDB** (ODM **Mongoose**); có thể dùng MongoDB Atlas trên cloud hoặc MongoDB cài local.
+- **Lưu trữ media:** **Cloudinary** (ảnh sản phẩm, banner, v.v.).
+- **Dịch vụ tích hợp (tùy cấu hình):** gửi email OTP (SMTP Gmail, **Resend**, **Brevo**), chatbot (**OpenAI** API khi bật `AI_PROVIDER=openai`).
+- **Công cụ lập trình:** VS Code (hoặc IDE tương đương).
+- **Công cụ phân tích / thiết kế phần mềm:** Visual Paradigm (hoặc công cụ UML tương đương).
+- **Hệ điều hành:** Windows (hoặc macOS / Linux để dev).
+- **Mạng:** truy cập Internet (cài dependency npm, API Atlas/Cloudinary, deploy).
+- **Phần cứng khuyến nghị khi phát triển:** RAM tối thiểu **8 GB** (khuyến nghị **16 GB** nếu chạy đồng thời nhiều IDE, trình duyệt, Docker); CPU xung nhịp **2 GHz** trở lên.
+
+**Lưu ý:** Dự án **không** dùng MySQL; toàn bộ dữ liệu chính lưu trên **MongoDB**.
+
 ### `server/.env`
 Sao chép từ `server/.env.example`, bắt buộc:
 - `MONGODB_URI`

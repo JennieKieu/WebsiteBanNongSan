@@ -13,7 +13,7 @@ Repo đã có [`render.yaml`](render.yaml) (Render Blueprint) và [`.gitignore`]
    - `naturalstore` — static site (React)
 4. Khi được hỏi, điền các biến **Secret** (sync: false):
    - `MONGODB_URI` — connection string MongoDB Atlas (xem mục Atlas)
-   - `CLOUDINARY_*`, `AI_API_KEY`, SMTP (nếu dùng)
+   - `CLOUDINARY_*`, `AI_API_KEY`, `BREVO_*` / `MAILJET_*` / `RESEND_API_KEY` (gửi mail) hoặc SMTP
 5. Đợi deploy xong. URL mặc định:
    - API: `https://naturalstore-api.onrender.com`
    - Web: `https://naturalstore.onrender.com`
@@ -53,20 +53,57 @@ Dán vào biến `MONGODB_URI` trên Render.
 
 ---
 
-## Gửi email OTP (SMTP / Gmail)
+## Gửi email OTP — chọn 1 trong các cách
 
-Đăng ký và quên mật khẩu cần cấu hình **SMTP** trên web service API (ví dụ `naturalstore-api`):
+Trên Render, SMTP tới Gmail thường bị **timeout**. Ưu tiên dùng **HTTP API**.  
+Code tự chọn theo thứ tự: **Brevo → Mailjet → Resend → SMTP** (chỉ cần cấu hình **một** nhà cung cấp; nếu có nhiều biến, thứ tự trên quyết định).
 
-| Biến | Giá trị thường dùng |
-|------|---------------------|
+---
+
+### Cách 1 — Brevo (không cần domain)
+
+1. Đăng ký [brevo.com](https://brevo.com) (miễn phí ~300 email/ngày).
+2. **My Account → SMTP & API → API Keys** → tạo key.
+3. **Senders & IP → Senders** → thêm Gmail của bạn → xác minh qua link email.
+4. Trên Render (service API) → **Environment**:
+   - `BREVO_API_KEY` = key vừa tạo
+   - `BREVO_SENDER_EMAIL` = Gmail đã xác minh
+   - `BREVO_SENDER_NAME` = `Natural Store`
+5. **Save** → deploy lại API.
+
+---
+
+### Cách 2 — Mailjet (Free — không bắt buộc domain)
+
+1. Đăng ký [mailjet.com](https://www.mailjet.com/) → chọn **Free** (giới hạn theo gói hiện tại, thường vài nghìn email/tháng).
+2. **Account settings → REST API → Master API Key** (hoặc **API Key Management**) → tạo / xem **API Key** và **Secret Key** (hai chuỗi riêng).
+3. **Senders & Domains** → **Add a sender address** → nhập Gmail → xác minh qua email Mailjet gửi tới hộp thư đó.
+4. Trên Render → **Environment** (service API):
+   - `MAILJET_API_KEY` = API Key
+   - `MAILJET_SECRET_KEY` = Secret Key
+   - `MAILJET_SENDER_EMAIL` = đúng Gmail đã xác minh ở bước 3
+   - `MAILJET_SENDER_NAME` = `Natural Store` (tùy chọn)
+5. **Không** đặt `BREVO_*` nếu bạn muốn ưu tiên Mailjet (hoặc xóa Brevo để tránh Brevo được chọn trước).
+6. **Save** → deploy lại API.
+
+---
+
+### Cách 3 — Resend (cần domain riêng để gửi email bất kỳ ổn định)
+
+1. Đăng ký [resend.com](https://resend.com) → **API Keys** → tạo key dạng `re_...`.
+2. Xác minh domain riêng → **Domains** → thêm domain → cấu hình DNS.
+3. Trên Render → Environment: `RESEND_API_KEY`, `EMAIL_FROM`.
+
+---
+
+### Cách 4 — SMTP Gmail (thường timeout trên Render free tier)
+
+| Biến | Giá trị |
+|------|---------|
 | `SMTP_HOST` | `smtp.gmail.com` |
-| `SMTP_PORT` | `587` (hoặc `465` nếu dùng SSL trực tiếp) |
-| `SMTP_USER` | Địa chỉ Gmail dùng để gửi mail |
-| `SMTP_PASS` | **Mật ứng dụng** 16 ký tự (Google Account → Bảo mật → Xác minh 2 bước → Mật ứng dụng). Có thể dán có hoặc không có dấu cách giữa các nhóm ký tự. |
-
-Trên Render: **Environment** của API → thêm đủ bốn biến → **Save** → **Manual Deploy**. Nếu thiếu biến, API sẽ trả lỗi rõ ràng; kết nối SMTP có **giới hạn thời gian chờ** để tránh giao diện bị treo “Đang xử lý…” vô hạn.
-
-Nếu vẫn không gửi được: mở **Logs** của API, tìm dòng `[Email]`; kiểm tra lại mật ứng dụng Gmail (không dùng mật khẩu đăng nhập thường).
+| `SMTP_PORT` | `587` |
+| `SMTP_USER` | Gmail gửi mail |
+| `SMTP_PASS` | Mật ứng dụng 16 ký tự (Google → 2FA → Mật ứng dụng) |
 
 ---
 

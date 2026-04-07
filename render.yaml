@@ -43,6 +43,29 @@ services:
         sync: false
       - key: AI_MODEL
         value: gpt-4o-mini
+      # ── Gửi mail: Brevo → Mailjet → Resend → SMTP (chỉ cần 1 nhà cấu hình đủ) ─
+      # Cách 1 (khuyến nghị): Brevo — 300 email/ngày, không cần domain
+      - key: BREVO_API_KEY
+        sync: false
+      - key: BREVO_SENDER_EMAIL
+        sync: false
+      - key: BREVO_SENDER_NAME
+        value: Natural Store
+      # Cách 2: Mailjet — Free, API + Secret + sender đã xác minh
+      - key: MAILJET_API_KEY
+        sync: false
+      - key: MAILJET_SECRET_KEY
+        sync: false
+      - key: MAILJET_SENDER_EMAIL
+        sync: false
+      - key: MAILJET_SENDER_NAME
+        value: Natural Store
+      # Cách 3: Resend
+      - key: RESEND_API_KEY
+        sync: false
+      - key: EMAIL_FROM
+        sync: false
+      # Cách 3: SMTP (thường timeout trên Render free tier)
       - key: SMTP_HOST
         sync: false
       - key: SMTP_PORT
