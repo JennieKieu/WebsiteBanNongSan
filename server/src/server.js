@@ -4,9 +4,16 @@ process.env.TZ = "Asia/Ho_Chi_Minh";
 const app = require("./app");
 const env = require("./config/env");
 const { connectDb } = require("./config/db");
+const { backfillProductSearchFields } = require("./services/productSearchBackfill");
 
 async function bootstrap() {
   await connectDb();
+  try {
+    await backfillProductSearchFields();
+  } catch (e) {
+    // eslint-disable-next-line no-console
+    console.error("[product-search] Backfill lỗi (có thể bỏ qua nếu DB trống):", e.message);
+  }
   app.listen(env.port, () => {
     // eslint-disable-next-line no-console
     console.log(`Natural Store API running on port ${env.port}`);

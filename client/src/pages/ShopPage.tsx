@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { useSearchParams } from "react-router-dom";
 import { HiOutlineAdjustmentsHorizontal, HiOutlineMagnifyingGlass } from "react-icons/hi2";
 import { RiLeafLine } from "react-icons/ri";
@@ -6,6 +6,7 @@ import ProductCard from "../components/ProductCard";
 import VnIntegerInput from "../components/VnIntegerInput";
 import Pagination from "../components/Pagination";
 import { useApi } from "../hooks/useApi";
+import { useFilterTextInput } from "../hooks/useFilterTextInput";
 import http from "../api/http";
 
 type Product = {
@@ -35,6 +36,11 @@ export default function ShopPage() {
   const cert = params.get("certification") || "";
   const minPrice = params.get("minPrice") || "";
   const maxPrice = params.get("maxPrice") || "";
+  const sortParam = params.get("sort") || "newest";
+  const sort =
+    sortParam === "price_asc" || sortParam === "price_desc" || sortParam === "newest"
+      ? sortParam
+      : "newest";
 
   const { data: categories } = useApi<Category[]>("/categories", []);
 
@@ -51,7 +57,7 @@ export default function ShopPage() {
     let mounted = true;
     setLoading(true);
     setError(null);
-    const q = `/products?keyword=${encodeURIComponent(keyword)}&categoryId=${categoryId}&supplier=${encodeURIComponent(supplier)}&certification=${encodeURIComponent(cert)}&minPrice=${minPrice}&maxPrice=${maxPrice}&limit=${PAGE_SIZE}&page=${pageNum}`;
+    const q = `/products?keyword=${encodeURIComponent(keyword)}&categoryId=${categoryId}&supplier=${encodeURIComponent(supplier)}&certification=${encodeURIComponent(cert)}&minPrice=${minPrice}&maxPrice=${maxPrice}&sort=${encodeURIComponent(sort)}&limit=${PAGE_SIZE}&page=${pageNum}`;
     http.get(q)
       .then((res) => {
         if (!mounted) return;
@@ -66,15 +72,22 @@ export default function ShopPage() {
         if (mounted) setLoading(false);
       });
     return () => { mounted = false; };
-  }, [keyword, categoryId, supplier, cert, minPrice, maxPrice, pageNum]);
+  }, [keyword, categoryId, supplier, cert, minPrice, maxPrice, sort, pageNum]);
 
-  function updateFilter(key: string, value: string) {
-    setParams((p) => {
-      const next = { ...Object.fromEntries(p.entries()), [key]: value };
-      if (key !== "page") next.page = "1";
-      return next;
-    });
-  }
+  const updateFilter = useCallback(
+    (key: string, value: string) => {
+      setParams((p) => {
+        const next = { ...Object.fromEntries(p.entries()), [key]: value };
+        if (key !== "page") next.page = "1";
+        return next;
+      });
+    },
+    [setParams]
+  );
+
+  const keywordInput = useFilterTextInput(keyword, "keyword", updateFilter);
+  const supplierInput = useFilterTextInput(supplier, "supplier", updateFilter);
+  const certInput = useFilterTextInput(cert, "certification", updateFilter);
 
   const activeCategoryName = categories?.find((c) => c._id === categoryId)?.name;
 
@@ -94,24 +107,39 @@ export default function ShopPage() {
       <div className="filter-section">
         <label>Từ khoá</label>
         <input
-          value={keyword}
-          onChange={(e) => updateFilter("keyword", e.target.value)}
+          type="text"
+          lang="vi"
+          autoComplete="off"
+          value={keywordInput.value}
+          onChange={keywordInput.onChange}
+          onCompositionStart={keywordInput.onCompositionStart}
+          onCompositionEnd={keywordInput.onCompositionEnd}
           placeholder="Tên sản phẩm..."
         />
       </div>
       <div className="filter-section">
         <label>Nhà cung cấp</label>
         <input
-          value={supplier}
-          onChange={(e) => updateFilter("supplier", e.target.value)}
+          type="text"
+          lang="vi"
+          autoComplete="off"
+          value={supplierInput.value}
+          onChange={supplierInput.onChange}
+          onCompositionStart={supplierInput.onCompositionStart}
+          onCompositionEnd={supplierInput.onCompositionEnd}
           placeholder="Tên nhà cung cấp..."
         />
       </div>
       <div className="filter-section">
         <label>Chứng nhận</label>
         <input
-          value={cert}
-          onChange={(e) => updateFilter("certification", e.target.value)}
+          type="text"
+          lang="vi"
+          autoComplete="off"
+          value={certInput.value}
+          onChange={certInput.onChange}
+          onCompositionStart={certInput.onCompositionStart}
+          onCompositionEnd={certInput.onCompositionEnd}
           placeholder="VD: VietGAP, hữu cơ..."
         />
       </div>
@@ -146,8 +174,9 @@ export default function ShopPage() {
         />
       </div>
 
-      {(categoryId || supplier || cert || minPrice || maxPrice) && (
+      {(categoryId || keyword || supplier || cert || minPrice || maxPrice || sort !== "newest") && (
         <button
+          type="button"
           className="btn btn-ghost btn-sm"
           style={{ width: "100%", marginTop: 8 }}
           onClick={() => setParams({})}
@@ -178,9 +207,24 @@ export default function ShopPage() {
               <RiLeafLine style={{ verticalAlign: "middle", color: "var(--c-primary)" }} />{" "}
               {activeCategoryName || "Tất cả sản phẩm"}
             </h1>
-            <span className="shop-count">
-              {loading ? "Đang tải..." : `${totalItems} sản phẩm`}
-            </span>
+            <div className="shop-toolbar-right">
+              <div className="shop-sort-wrap">
+                <label htmlFor="shop-sort">Sắp xếp</label>
+                <select
+                  id="shop-sort"
+                  className="shop-sort-select"
+                  value={sort}
+                  onChange={(e) => updateFilter("sort", e.target.value)}
+                >
+                  <option value="newest">Mới nhất</option>
+                  <option value="price_asc">Giá: thấp → cao</option>
+                  <option value="price_desc">Giá: cao → thấp</option>
+                </select>
+              </div>
+              <span className="shop-count">
+                {loading ? "Đang tải..." : `${totalItems} sản phẩm`}
+              </span>
+            </div>
           </div>
 
           {error && <div className="error-box">{error}</div>}

@@ -1049,7 +1049,35 @@ input:focus, select:focus, textarea:focus {
 .shop-content { flex: 1; min-width: 0; }
 .shop-toolbar {
   display: flex; align-items: center; justify-content: space-between;
-  margin-bottom: 16px; flex-wrap: wrap; gap: 8px;
+  margin-bottom: 16px; flex-wrap: wrap; gap: 12px;
+}
+.shop-toolbar-right {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  flex-wrap: wrap;
+}
+.shop-sort-wrap {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+.shop-sort-wrap label {
+  font-size: 0.8125rem;
+  font-weight: 600;
+  color: var(--c-text-muted);
+  margin: 0;
+  white-space: nowrap;
+}
+.shop-sort-select {
+  min-width: 200px;
+  font-size: 0.875rem;
+  padding: 8px 12px;
+  border-radius: var(--radius-sm, 8px);
+  border: 1px solid var(--c-border, #e5e7eb);
+  background: var(--c-surface, #fff);
+  color: var(--c-text);
 }
 .shop-count { font-size: 0.875rem; color: var(--c-text-muted); }
 
