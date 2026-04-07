@@ -46,6 +46,8 @@ router.post("/auth/logout", auth, authCtrl.logout);
 router.get("/users/me", auth, authCtrl.me);
 router.put("/auth/profile", auth, authCtrl.updateProfile);
 router.put("/auth/change-password", auth, authCtrl.changePassword);
+router.post("/auth/forgot-password", authCtrl.forgotPassword);
+router.post("/auth/reset-password", authCtrl.resetPassword);
 
 // ─── Public catalogue ─────────────────────────────────────────────────────────
 router.get("/coupons/active", optionalAuth, orderCtrl.publicCoupons);

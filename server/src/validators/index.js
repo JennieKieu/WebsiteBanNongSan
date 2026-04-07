@@ -13,7 +13,8 @@ const otpRule = body("otp").trim().matches(/^\d{6}$/).withMessage("OTP phải đ
 
 const registerValidator = [nameRule, emailRule, passwordRule];
 const loginValidator = [emailRule, body("password").notEmpty().withMessage("Vui lòng nhập mật khẩu")];
-const verifyOtpValidator = [emailRule, otpRule];
+/** Xác thực đăng ký: cần email + OTP + họ tên + mật khẩu (gửi lại, không lưu tạm trên server) */
+const verifyOtpValidator = [nameRule, emailRule, otpRule, passwordRule];
 
 const productValidator = [
   body("name").trim().isLength({ min: 2, max: 160 }).withMessage("Tên sản phẩm 2–160 ký tự"),
