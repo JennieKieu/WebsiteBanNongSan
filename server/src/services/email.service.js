@@ -21,28 +21,56 @@ function assertSmtpConfigured() {
 
 function getTransporter() {
   if (!_transporter) {
-    const pass = smtpPassNormalized();
-    _transporter = nodemailer.createTransport({
-      host: env.smtpHost.trim(),
-      port: env.smtpPort,
-      secure: env.smtpPort === 465,
-      auth: {
-        user: env.smtpUser.trim(),
-        pass,
-      },
-      pool: false,
-      requireTLS: env.smtpPort === 587,
-      connectionTimeout: 15_000,
-      greetingTimeout: 15_000,
-      socketTimeout: 20_000,
-      tls: { minVersion: "TLSv1.2" },
-    });
+    _transporter = nodemailer.createTransport(buildTransportOptions());
   }
   return _transporter;
 }
 
 function resetTransporter() {
   _transporter = null;
+}
+
+/** smtp.gmail.com → dùng preset Gmail (465 SSL), thường ổn định hơn 587 STARTTLS trên Render */
+function isGmailSmtpHost() {
+  const h = String(env.smtpHost || "")
+    .trim()
+    .toLowerCase();
+  return h === "smtp.gmail.com" || h === "gmail";
+}
+
+function buildTransportOptions() {
+  const pass = smtpPassNormalized();
+  const user = env.smtpUser.trim();
+
+  const longTimeouts = {
+    pool: false,
+    connectionTimeout: 45_000,
+    greetingTimeout: 45_000,
+    socketTimeout: 60_000,
+  };
+
+  if (isGmailSmtpHost()) {
+    return {
+      service: "gmail",
+      auth: { user, pass },
+      ...longTimeouts,
+    };
+  }
+
+  const host = env.smtpHost.trim();
+  const port = env.smtpPort;
+  return {
+    host,
+    port,
+    secure: port === 465,
+    auth: { user, pass },
+    ...longTimeouts,
+    requireTLS: port === 587,
+    tls: {
+      minVersion: "TLSv1.2",
+      servername: host,
+    },
+  };
 }
 
 /**
@@ -82,7 +110,7 @@ function getSmtpFailureInfo(err) {
       status: 503,
       code: "MAIL_ERROR",
       message:
-        "Không kết nối được máy chủ SMTP (timeout hoặc bị chặn). Kiểm tra SMTP_HOST=smtp.gmail.com, thử SMTP_PORT=587 hoặc 465.",
+        "Không kết nối được máy chủ SMTP (timeout). Với Gmail: đặt SMTP_HOST=smtp.gmail.com (code đã dùng cổng 465 SSL). Đảm bảo SMTP_USER và mật ứng dụng Gmail đúng. Nếu vẫn lỗi, thử dịch vụ gửi mail khác (Resend, Brevo).",
     };
   }
 

@@ -1,6 +1,16 @@
 /** Mọi thao tác Date dùng múi VN (setHours, v.v.) — BSON trong MongoDB vẫn là UTC. */
 process.env.TZ = "Asia/Ho_Chi_Minh";
 
+/** Tránh DNS IPv6 trước khiến kết nối SMTP (Gmail) timeout trên một số môi trường cloud (Render, v.v.) */
+try {
+  const dns = require("dns");
+  if (typeof dns.setDefaultResultOrder === "function") {
+    dns.setDefaultResultOrder("ipv4first");
+  }
+} catch {
+  /* ignore */
+}
+
 const app = require("./app");
 const env = require("./config/env");
 const { connectDb } = require("./config/db");
