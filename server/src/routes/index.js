@@ -11,6 +11,9 @@ const notificationCtrl = require("../controllers/notification.controller");
 const batchCtrl = require("../controllers/batch.controller");
 const userCtrl = require("../controllers/user.controller");
 const adminCtrl = require("../controllers/admin.controller");
+const categoryCtrl = require("../controllers/category.controller");
+const bannerCtrl = require("../controllers/banner.controller");
+const couponCtrl = require("../controllers/coupon.controller");
 const { adminCrudFactory } = require("../controllers/helpers");
 
 const validate = require("../middlewares/validate");
@@ -45,7 +48,7 @@ router.put("/auth/profile", auth, authCtrl.updateProfile);
 router.put("/auth/change-password", auth, authCtrl.changePassword);
 
 // ─── Public catalogue ─────────────────────────────────────────────────────────
-router.get("/coupons/active", orderCtrl.publicCoupons);
+router.get("/coupons/active", optionalAuth, orderCtrl.publicCoupons);
 router.get("/categories", productCtrl.listCategories);
 router.get("/banners", productCtrl.listBanners);
 router.get("/products", productCtrl.listProducts);
@@ -92,24 +95,24 @@ admin.get("/reports", adminCtrl.adminReports);
 admin.post("/check-expiry-notifications", notificationCtrl.triggerExpiryCheck);
 
 admin.get("/products/:id", productCtrl.adminProductById);
-admin.get("/products", adminCrudFactory(Product));
+admin.get("/products", productCtrl.adminListProducts);
 admin.post("/products", productValidator, validate, productCtrl.adminCreateProduct);
 admin.put("/products/:id", productCtrl.adminUpdateProduct);
 admin.delete("/products/:id", adminCrudFactory(Product));
 
 admin.get("/categories", adminCrudFactory(Category));
-admin.post("/categories", adminCrudFactory(Category));
-admin.put("/categories/:id", adminCrudFactory(Category));
+admin.post("/categories", categoryCtrl.createCategory);
+admin.put("/categories/:id", categoryCtrl.updateCategory);
 admin.delete("/categories/:id", adminCrudFactory(Category));
 
 admin.get("/banners", adminCrudFactory(Banner));
-admin.post("/banners", adminCrudFactory(Banner));
-admin.put("/banners/:id", adminCrudFactory(Banner));
+admin.post("/banners", bannerCtrl.createBanner);
+admin.put("/banners/:id", bannerCtrl.updateBanner);
 admin.delete("/banners/:id", adminCrudFactory(Banner));
 
 admin.get("/coupons", adminCrudFactory(Coupon));
-admin.post("/coupons", couponValidator, validate, adminCrudFactory(Coupon));
-admin.put("/coupons/:id", couponValidator, validate, adminCrudFactory(Coupon));
+admin.post("/coupons", couponValidator, validate, couponCtrl.createCoupon);
+admin.put("/coupons/:id", couponValidator, validate, couponCtrl.updateCoupon);
 admin.delete("/coupons/:id", adminCrudFactory(Coupon));
 
 admin.post("/upload", upload.single("image"), adminCtrl.uploadImage);

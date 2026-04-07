@@ -8,6 +8,7 @@ import {
   HiOutlineTag,
 } from "react-icons/hi2";
 import { RiLeafLine } from "react-icons/ri";
+import toast from "react-hot-toast";
 import http from "../api/http";
 import Pagination from "../components/Pagination";
 import AdminListToolbar from "../components/AdminListToolbar";
@@ -130,7 +131,7 @@ export default function AdminCategoryPage() {
       closeForm();
       fetchCategories();
     } catch (err: any) {
-      setError(err.response?.data?.message || err.message);
+      toast.error(err.response?.data?.message || err.message);
     } finally {
       setSaving(false);
     }
@@ -142,7 +143,7 @@ export default function AdminCategoryPage() {
       setDeleteConfirm(null);
       fetchCategories();
     } catch (err: any) {
-      setError(err.response?.data?.message || err.message);
+      toast.error(err.response?.data?.message || err.message);
     }
   }
 

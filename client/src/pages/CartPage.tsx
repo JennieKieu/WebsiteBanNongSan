@@ -72,6 +72,8 @@ export default function CartPage() {
     useCartStore.getState().setTotalQty(t);
   }, [loading, data]);
 
+  const hasOutOfStock = items.some((i) => Number(i.availableStock ?? 0) === 0);
+
   const subtotal = useMemo(
     () =>
       items.reduce(
@@ -261,7 +263,9 @@ export default function CartPage() {
             const hasSale =
               p.salePrice != null && p.salePrice < p.price;
             const lineTotal = unit * item.quantity;
-            const maxStock = Math.min(99, Number(item.availableStock ?? 99));
+            const availStock = Number(item.availableStock ?? 0);
+            const isItemOutOfStock = availStock === 0;
+            const maxStock = Math.min(99, availStock);
 
             return (
               <li key={item.productId} className="cart-row">
@@ -314,53 +318,59 @@ export default function CartPage() {
                       <span className="cart-price-per">/ {p?.unit}</span>
                     </div>
 
-                    <div className="qty-control cart-qty-control">
-                      <button
-                        type="button"
-                        onClick={() =>
-                          changeQuantity(
-                            item.productId,
-                            item.quantity - 1,
-                            maxStock,
-                          )
-                        }
-                        disabled={item.quantity <= 1}
-                        aria-label="Giảm số lượng"
-                      >
-                        −
-                      </button>
-                      <VnIntegerInput
-                        commitOnBlur
-                        min={1}
-                        max={maxStock}
-                        value={item.quantity}
-                        onCommit={(n) =>
-                          changeQuantity(item.productId, n, maxStock)
-                        }
-                        aria-label="Số lượng"
-                      />
-                      <button
-                        type="button"
-                        onClick={() =>
-                          changeQuantity(
-                            item.productId,
-                            item.quantity + 1,
-                            maxStock,
-                          )
-                        }
-                        disabled={item.quantity >= maxStock}
-                        aria-label="Tăng số lượng"
-                      >
-                        +
-                      </button>
-                    </div>
+                    {!isItemOutOfStock && (
+                      <div className="qty-control cart-qty-control">
+                        <button
+                          type="button"
+                          onClick={() =>
+                            changeQuantity(
+                              item.productId,
+                              item.quantity - 1,
+                              maxStock,
+                            )
+                          }
+                          disabled={item.quantity <= 1}
+                          aria-label="Giảm số lượng"
+                        >
+                          −
+                        </button>
+                        <VnIntegerInput
+                          commitOnBlur
+                          min={1}
+                          max={maxStock}
+                          value={item.quantity}
+                          onCommit={(n) =>
+                            changeQuantity(item.productId, n, maxStock)
+                          }
+                          aria-label="Số lượng"
+                        />
+                        <button
+                          type="button"
+                          onClick={() =>
+                            changeQuantity(
+                              item.productId,
+                              item.quantity + 1,
+                              maxStock,
+                            )
+                          }
+                          disabled={item.quantity >= maxStock}
+                          aria-label="Tăng số lượng"
+                        >
+                          +
+                        </button>
+                      </div>
+                    )}
                   </div>
 
-                  {item.availableStock != null && item.availableStock <= 10 && (
+                  {isItemOutOfStock ? (
+                    <p className="cart-row-stock-note cart-row-stock-note--out">
+                      Sản phẩm này hiện đã hết hàng. Vui lòng xóa để tiếp tục thanh toán.
+                    </p>
+                  ) : item.availableStock != null && item.availableStock <= 10 ? (
                     <p className="cart-row-stock-note">
                       Còn {item.availableStock} sản phẩm trong kho
                     </p>
-                  )}
+                  ) : null}
                 </div>
 
                 <div className="cart-row-total">
@@ -500,10 +510,17 @@ export default function CartPage() {
             <span>{grandTotal.toLocaleString("vi-VN")}₫</span>
           </div>
 
-          <Link to={`/checkout${appliedCoupon ? `?coupon=${appliedCoupon}` : ""}`} className="btn cart-summary-checkout">
-            <HiOutlineCreditCard aria-hidden />
-            Tiến hành thanh toán
-          </Link>
+          {hasOutOfStock ? (
+            <button type="button" className="btn cart-summary-checkout" disabled title="Vui lòng xóa sản phẩm hết hàng trước">
+              <HiOutlineCreditCard aria-hidden />
+              Tiến hành thanh toán
+            </button>
+          ) : (
+            <Link to={`/checkout${appliedCoupon ? `?coupon=${appliedCoupon}` : ""}`} className="btn cart-summary-checkout">
+              <HiOutlineCreditCard aria-hidden />
+              Tiến hành thanh toán
+            </Link>
+          )}
 
           <Link to="/shop" className="cart-summary-back">
             <HiOutlineShoppingBag aria-hidden />

@@ -22,20 +22,40 @@ export default function ProductDetailPage() {
   const { id = "" } = useParams();
   const [qty, setQty] = useState(1);
   const [adding, setAdding] = useState(false);
+  const [cartQty, setCartQty] = useState(0);
   const { data, loading } = useApi<any>(`/products/${id}`, [id]);
   const product = data || {};
   const relatedProducts: any[] = Array.isArray(product.relatedProducts) ? product.relatedProducts : [];
   const gallery: { secure_url: string }[] = Array.isArray(product.images) ? product.images : [];
   const [activeImg, setActiveImg] = useState(0);
 
+  const user = useAuthStore((s) => s.user);
+  const liked = useWishlistStore((s) => s.ids.has(id));
+  const toggleWish = useWishlistStore((s) => s.toggle);
+
   useEffect(() => {
     setActiveImg(0);
+    setQty(1);
+    setCartQty(0);
   }, [id]);
+
+  /* Lấy số lượng sản phẩm này đang có trong giỏ (chỉ khi đã đăng nhập). */
+  useEffect(() => {
+    if (!user || !id) return;
+    http.get("/cart").then((res) => {
+      const items: { productId: string; quantity: number }[] = res.data.data?.items || [];
+      const found = items.find((it) => it.productId === id || String(it.productId) === id);
+      setCartQty(found ? Number(found.quantity) : 0);
+    }).catch(() => {});
+  }, [user, id]);
 
   async function addToCart() {
     setAdding(true);
     try {
-      await http.post("/cart/items", { productId: id, quantity: qty });
+      const newQty = cartQty + qty;
+      await http.post("/cart/items", { productId: id, quantity: newQty });
+      setCartQty(newQty);
+      setQty(1);
       await useCartStore.getState().fetch();
     } catch {
       alert("Vui lòng đăng nhập để thêm giỏ hàng");
@@ -44,14 +64,12 @@ export default function ProductDetailPage() {
     }
   }
 
-  const user = useAuthStore((s) => s.user);
-  const liked = useWishlistStore((s) => s.ids.has(id));
-  const toggleWish = useWishlistStore((s) => s.toggle);
-
   if (loading) return <div className="loading-spinner">Đang tải chi tiết sản phẩm...</div>;
 
   const hasSale = product.salePrice && product.salePrice < product.price;
-  const maxQty = Math.max(1, Math.min(99, Number(product.availableStock ?? 99)));
+  const inStock = Number(product.availableStock ?? 0) > 0;
+  const canAdd = inStock ? Math.max(0, Math.min(99, Number(product.availableStock) - cartQty)) : 0;
+  const maxQty = canAdd;
   const safeIdx = gallery.length ? Math.min(activeImg, gallery.length - 1) : 0;
   const mainSrc =
     gallery[safeIdx]?.secure_url ||
@@ -119,30 +137,48 @@ export default function ProductDetailPage() {
           {product.description && <p>{product.description}</p>}
 
           <div className="detail-actions">
-            <div className="qty-control">
-              <button type="button" onClick={() => setQty((q) => Math.max(1, q - 1))}>−</button>
-              <VnIntegerInput
-                min={1}
-                max={maxQty}
-                value={qty}
-                onValueChange={(n) => {
-                  if (n === null) setQty(1);
-                  else setQty(Math.max(1, Math.min(maxQty, n)));
-                }}
-                aria-label="Số lượng"
-              />
-              <button
-                type="button"
-                onClick={() => setQty((q) => Math.min(maxQty, q + 1))}
-                disabled={qty >= maxQty}
-              >
-                +
-              </button>
-            </div>
-            <button className="btn" onClick={addToCart} disabled={adding || product.availableStock <= 0}>
-              <HiOutlineShoppingCart />
-              {adding ? "Đang thêm..." : "Thêm vào giỏ"}
-            </button>
+            {!inStock ? (
+              <div className="detail-out-of-stock">
+                <span className="badge badge-red" style={{ fontSize: "1rem", padding: "8px 18px" }}>Hết hàng</span>
+                <p className="text-muted" style={{ margin: 0, fontSize: "0.875rem" }}>
+                  Sản phẩm tạm thời hết hàng. Vui lòng quay lại sau.
+                </p>
+              </div>
+            ) : canAdd === 0 ? (
+              <div className="detail-out-of-stock">
+                <span className="badge badge-orange" style={{ fontSize: "1rem", padding: "8px 18px" }}>Đã thêm tối đa</span>
+                <p className="text-muted" style={{ margin: 0, fontSize: "0.875rem" }}>
+                  Bạn đã thêm toàn bộ số lượng còn lại ({cartQty} {product.unit}) vào giỏ hàng.
+                </p>
+              </div>
+            ) : (
+              <>
+                <div className="qty-control">
+                  <button type="button" onClick={() => setQty((q) => Math.max(1, q - 1))} disabled={qty <= 1}>−</button>
+                  <VnIntegerInput
+                    min={1}
+                    max={maxQty}
+                    value={qty}
+                    onValueChange={(n) => {
+                      if (n === null) setQty(1);
+                      else setQty(Math.max(1, Math.min(maxQty, n)));
+                    }}
+                    aria-label="Số lượng"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setQty((q) => Math.min(maxQty, q + 1))}
+                    disabled={qty >= maxQty}
+                  >
+                    +
+                  </button>
+                </div>
+                <button className="btn" onClick={addToCart} disabled={adding}>
+                  <HiOutlineShoppingCart />
+                  {adding ? "Đang thêm..." : "Thêm vào giỏ"}
+                </button>
+              </>
+            )}
             {user && (
               <button
                 type="button"

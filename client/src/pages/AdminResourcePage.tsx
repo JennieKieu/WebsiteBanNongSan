@@ -129,6 +129,7 @@ type ProductRow = {
   price?: number | null;
   salePrice?: number | null;
   isActive?: boolean;
+  availableStock?: number;
   updatedAt?: string;
   createdAt?: string;
 };
@@ -400,6 +401,22 @@ export default function AdminResourcePage() {
   async function submitBatch(e: React.FormEvent) {
     e.preventDefault();
     setErrMsg("");
+
+    const importPrice = Number(bf.importPrice);
+    const product = (productList as ProductRow[]).find((p) => p._id === bf.productId);
+    if (product) {
+      const salePrice =
+        product.salePrice && Number(product.salePrice) > 0 && Number(product.salePrice) < Number(product.price ?? 0)
+          ? Number(product.salePrice)
+          : Number(product.price ?? 0);
+      if (importPrice >= salePrice) {
+        toast.error(
+          `Giá nhập (${importPrice.toLocaleString("vi-VN")}₫) phải nhỏ hơn giá bán (${salePrice.toLocaleString("vi-VN")}₫)`
+        );
+        return;
+      }
+    }
+
     setSaving(true);
     try {
       const body = {
@@ -409,7 +426,7 @@ export default function AdminResourcePage() {
         packingDate: new Date(bf.packingDate).toISOString(),
         expiryDate: new Date(bf.expiryDate).toISOString(),
         quantityInStock: Number(bf.quantityInStock),
-        importPrice: Number(bf.importPrice),
+        importPrice,
         status: bf.status,
         notes: bf.notes.trim(),
       };
@@ -422,7 +439,7 @@ export default function AdminResourcePage() {
       reload();
     } catch (err: unknown) {
       const ax = err as { response?: { data?: { message?: string } } };
-      setErrMsg(ax.response?.data?.message || "Lưu lô hàng thất bại");
+      toast.error(ax.response?.data?.message || "Lưu lô hàng thất bại");
     } finally {
       setSaving(false);
     }
@@ -506,7 +523,7 @@ export default function AdminResourcePage() {
       reload();
     } catch (err: unknown) {
       const ax = err as { response?: { data?: { message?: string } } };
-      setErrMsg(ax.response?.data?.message || "Lưu mã giảm giá thất bại");
+      toast.error(ax.response?.data?.message || "Lưu mã giảm giá thất bại");
     } finally {
       setSaving(false);
     }
@@ -575,7 +592,7 @@ export default function AdminResourcePage() {
       reload();
     } catch (err: unknown) {
       const ax = err as { response?: { data?: { message?: string } } };
-      setErrMsg(ax.response?.data?.message || "Lưu khách hàng thất bại");
+      toast.error(ax.response?.data?.message || "Lưu người dùng thất bại");
     } finally {
       setSaving(false);
     }
@@ -697,8 +714,9 @@ export default function AdminResourcePage() {
     if (path === "/admin/products") {
       let list = (allRows as ProductRow[]).slice();
       if (filterCategoryId) list = list.filter((p) => String(p.categoryId) === filterCategoryId);
-      if (filterActive === "active") list = list.filter((p) => p.isActive !== false);
+      if (filterActive === "active") list = list.filter((p) => p.isActive !== false && Number(p.availableStock ?? 0) > 0);
       if (filterActive === "inactive") list = list.filter((p) => p.isActive === false);
+      if (filterActive === "pending") list = list.filter((p) => p.isActive !== false && Number(p.availableStock ?? 0) === 0);
       if (q) {
         list = list.filter(
           (p) =>
@@ -863,6 +881,7 @@ export default function AdminResourcePage() {
                 <option value="">Trạng thái bán</option>
                 <option value="active">Đang bán</option>
                 <option value="inactive">Ngừng bán</option>
+                <option value="pending">Chờ nhập hàng</option>
               </select>
             </>
           )}
@@ -1032,9 +1051,13 @@ export default function AdminResourcePage() {
                     )}
                   </td>
                   <td>
-                    <span className={`badge ${p.isActive !== false ? "badge-green" : "badge-gray"}`}>
-                      {p.isActive !== false ? "Đang bán" : "Ngừng bán"}
-                    </span>
+                    {p.isActive === false ? (
+                      <span className="badge badge-gray">Ngừng bán</span>
+                    ) : Number(p.availableStock ?? 0) > 0 ? (
+                      <span className="badge badge-green">Đang bán</span>
+                    ) : (
+                      <span className="badge badge-orange">Chờ nhập hàng</span>
+                    )}
                   </td>
                   <td>
                     <div className="admin-row-actions">
@@ -1476,7 +1499,14 @@ export default function AdminResourcePage() {
       )}
 
       {/* Batch modal */}
-      {batchModal && (
+      {batchModal && (() => {
+        const selectedProduct = (productList as ProductRow[]).find((p) => p._id === bf.productId);
+        const unit = selectedProduct?.unit || "";
+        const basePrice = Number(selectedProduct?.price ?? 0);
+        const salePrice = selectedProduct?.salePrice ? Number(selectedProduct.salePrice) : null;
+        const hasSale = salePrice !== null && salePrice > 0 && salePrice < basePrice;
+        const effectivePrice = hasSale ? salePrice! : basePrice;
+        return (
         <div className="modal-overlay" onClick={() => !saving && setBatchModal(null)}>
           <div className="modal-card" style={{ maxWidth: 520 }} onClick={(e) => e.stopPropagation()}>
             <div className="modal-header">
@@ -1491,10 +1521,24 @@ export default function AdminResourcePage() {
                 <select value={bf.productId} onChange={(e) => setBf({ ...bf, productId: e.target.value })} required>
                   {(productList || []).map((p) => (
                     <option key={p._id} value={p._id}>
-                      {p.name}
+                      {p.name}{p.unit ? ` (${p.unit})` : ""}
                     </option>
                   ))}
                 </select>
+                {selectedProduct && basePrice > 0 && (
+                  <p style={{ margin: "6px 0 0", fontSize: "0.8125rem", color: "var(--c-text-muted)" }}>
+                    Giá bán:{" "}
+                    {hasSale && (
+                      <span style={{ textDecoration: "line-through", marginRight: 6 }}>
+                        {basePrice.toLocaleString("vi-VN")}₫
+                      </span>
+                    )}
+                    <strong style={{ color: hasSale ? "var(--c-primary)" : "var(--c-text)" }}>
+                      {effectivePrice.toLocaleString("vi-VN")}₫
+                    </strong>
+                    {unit && <span> / {unit}</span>}
+                  </p>
+                )}
               </div>
               <div className="form-group">
                 <label className="form-label">Mã lô *</label>
@@ -1514,7 +1558,9 @@ export default function AdminResourcePage() {
               </div>
               <div className="grid-2">
                 <div className="form-group">
-                  <label className="form-label">Tồn kho *</label>
+                  <label className="form-label">
+                    Tồn kho{unit ? ` (${unit})` : ""} *
+                  </label>
                   <VnIntegerInput
                     min={0}
                     value={bf.quantityInStock === "" ? "" : Number(bf.quantityInStock)}
@@ -1524,7 +1570,9 @@ export default function AdminResourcePage() {
                   />
                 </div>
                 <div className="form-group">
-                  <label className="form-label">Giá nhập (đ) *</label>
+                  <label className="form-label">
+                    Giá nhập / 1{unit ? ` ${unit}` : " sản phẩm"} (đ) *
+                  </label>
                   <VnIntegerInput
                     min={0}
                     value={bf.importPrice === "" ? "" : Number(bf.importPrice)}
@@ -1558,7 +1606,8 @@ export default function AdminResourcePage() {
             </form>
           </div>
         </div>
-      )}
+        );
+      })()}
 
       {/* Coupon modal */}
       {couponModal && (

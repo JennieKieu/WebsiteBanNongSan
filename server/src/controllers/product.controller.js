@@ -147,48 +147,89 @@ exports.listProducts = asyncHandler(async (req, res) => {
     if (req.query.minPrice) query.price.$gte = Number(req.query.minPrice);
     if (req.query.maxPrice) query.price.$lte = Number(req.query.maxPrice);
   }
-  const sortRaw = cleanText(req.query.sort || "newest");
-  const sort =
-    sortRaw === "price_asc" || sortRaw === "price_desc" ? sortRaw : "newest";
-  const priceSort = sort === "price_asc" || sort === "price_desc";
 
-  const total = await Product.countDocuments(query);
-  let products;
-  if (priceSort) {
-    const matchQ = castCategoryIdForAggregate(query);
-    const dir = sort === "price_asc" ? 1 : -1;
-    const catColl = Category.collection.collectionName;
-    products = await Product.aggregate([
-      { $match: matchQ },
-      {
-        $addFields: {
-          effectivePrice: { $ifNull: ["$salePrice", "$price"] },
+  const sortRaw = cleanText(req.query.sort || "newest");
+  const sort = ["price_asc", "price_desc"].includes(sortRaw) ? sortRaw : "newest";
+
+  const matchQ = castCategoryIdForAggregate(query);
+  const batchColl = ProductBatch.collection.collectionName;
+  const catColl = Category.collection.collectionName;
+
+  /** Stage tính tồn khả dụng từ lô còn hiệu lực. */
+  const stockLookupStage = {
+    $lookup: {
+      from: batchColl,
+      let: { pid: "$_id" },
+      pipeline: [
+        {
+          $match: {
+            $expr: { $eq: ["$productId", "$$pid"] },
+            status: { $in: ["Active", "NearExpiry"] },
+            isDisabled: { $ne: true },
+            expiryDate: { $gt: new Date() },
+            quantityInStock: { $gt: 0 },
+          },
         },
-      },
-      { $sort: { effectivePrice: dir, _id: 1 } },
-      { $skip: skip },
-      { $limit: limit },
-      {
-        $lookup: {
-          from: catColl,
-          localField: "categoryId",
-          foreignField: "_id",
-          as: "_categoryDocs",
-        },
-      },
-      { $addFields: { categoryId: { $arrayElemAt: ["$_categoryDocs", 0] } } },
-      { $project: { _categoryDocs: 0, effectivePrice: 0 } },
-    ]);
+        { $group: { _id: null, total: { $sum: "$quantityInStock" } } },
+      ],
+      as: "_stockInfo",
+    },
+  };
+  const addStockStage = {
+    $addFields: {
+      availableStock: { $ifNull: [{ $arrayElemAt: ["$_stockInfo.total", 0] }, 0] },
+    },
+  };
+  const filterInStockStage = { $match: { availableStock: { $gt: 0 } } };
+
+  const basePipeline = [
+    { $match: matchQ },
+    stockLookupStage,
+    addStockStage,
+    filterInStockStage,
+  ];
+
+  /** Đếm sau khi đã lọc hết hàng. */
+  const countResult = await Product.aggregate([...basePipeline, { $count: "total" }]);
+  const total = countResult[0]?.total ?? 0;
+
+  /** Sắp xếp. */
+  let sortStage;
+  if (sort === "price_asc") {
+    sortStage = {
+      before: [{ $addFields: { effectivePrice: { $ifNull: ["$salePrice", "$price"] } } }],
+      stage: { $sort: { effectivePrice: 1, _id: 1 } },
+      after: [{ $project: { effectivePrice: 0 } }],
+    };
+  } else if (sort === "price_desc") {
+    sortStage = {
+      before: [{ $addFields: { effectivePrice: { $ifNull: ["$salePrice", "$price"] } } }],
+      stage: { $sort: { effectivePrice: -1, _id: 1 } },
+      after: [{ $project: { effectivePrice: 0 } }],
+    };
   } else {
-    products = await Product.find(query)
-      .populate("categoryId", "name slug")
-      .sort({ createdAt: -1 })
-      .skip(skip)
-      .limit(limit)
-      .lean();
+    sortStage = { before: [], stage: { $sort: { createdAt: -1, _id: 1 } }, after: [] };
   }
-  const stockMap = await sumAvailableStockForProductIds(products.map((p) => p._id));
-  for (const p of products) p.availableStock = stockMap.get(p._id.toString()) || 0;
+
+  const products = await Product.aggregate([
+    ...basePipeline,
+    ...sortStage.before,
+    sortStage.stage,
+    { $skip: skip },
+    { $limit: limit },
+    {
+      $lookup: {
+        from: catColl,
+        localField: "categoryId",
+        foreignField: "_id",
+        as: "_categoryDocs",
+      },
+    },
+    { $addFields: { categoryId: { $arrayElemAt: ["$_categoryDocs", 0] } } },
+    { $project: { _categoryDocs: 0, _stockInfo: 0 } },
+    ...sortStage.after,
+  ]);
+
   res.json({ data: products, pagination: { page, limit, total, totalPages: Math.ceil(total / limit) } });
 });
 
@@ -233,6 +274,41 @@ async function assertProductNameUnique(name, excludeId) {
   const dup = await Product.findOne(filter).select("_id").lean();
   if (dup) throw new AppError("DUPLICATE_NAME", "Tên sản phẩm đã tồn tại", 409);
 }
+
+exports.adminListProducts = asyncHandler(async (req, res) => {
+  await refreshBatchStatuses();
+  const batchColl = ProductBatch.collection.collectionName;
+  const now = new Date();
+  const products = await Product.aggregate([
+    { $sort: { createdAt: -1 } },
+    {
+      $lookup: {
+        from: batchColl,
+        let: { pid: "$_id" },
+        pipeline: [
+          {
+            $match: {
+              $expr: { $eq: ["$productId", "$$pid"] },
+              status: { $in: ["Active", "NearExpiry"] },
+              isDisabled: { $ne: true },
+              expiryDate: { $gt: now },
+              quantityInStock: { $gt: 0 },
+            },
+          },
+          { $group: { _id: null, total: { $sum: "$quantityInStock" } } },
+        ],
+        as: "_stockInfo",
+      },
+    },
+    {
+      $addFields: {
+        availableStock: { $ifNull: [{ $arrayElemAt: ["$_stockInfo.total", 0] }, 0] },
+      },
+    },
+    { $project: { _stockInfo: 0 } },
+  ]);
+  res.json({ data: products });
+});
 
 exports.adminCreateProduct = asyncHandler(async (req, res) => {
   await assertProductNameUnique(req.body.name);

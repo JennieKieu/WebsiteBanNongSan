@@ -10,6 +10,7 @@ import {
   HiOutlineEye,
   HiOutlineEyeSlash,
 } from "react-icons/hi2";
+import toast from "react-hot-toast";
 import http from "../api/http";
 import ImageUpload from "../components/ImageUpload";
 import Pagination from "../components/Pagination";
@@ -136,7 +137,7 @@ export default function AdminBannerPage() {
       closeForm();
       fetchBanners();
     } catch (err: any) {
-      setError(err.response?.data?.message || err.message);
+      toast.error(err.response?.data?.message || err.message);
     } finally {
       setSaving(false);
     }
@@ -152,7 +153,7 @@ export default function AdminBannerPage() {
       setDeleteConfirm(null);
       fetchBanners();
     } catch (err: any) {
-      setError(err.response?.data?.message || err.message);
+      toast.error(err.response?.data?.message || err.message);
     }
   }
 
@@ -161,7 +162,7 @@ export default function AdminBannerPage() {
       await http.put(`/admin/banners/${b._id}`, { isActive: !b.isActive });
       fetchBanners();
     } catch (err: any) {
-      setError(err.response?.data?.message || err.message);
+      toast.error(err.response?.data?.message || err.message);
     }
   }
 

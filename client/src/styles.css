@@ -1434,6 +1434,16 @@ input:focus, select:focus, textarea:focus {
   color: var(--c-warning);
   font-weight: 500;
 }
+.cart-row-stock-note--out {
+  color: var(--c-error);
+}
+.detail-out-of-stock {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+  padding: 12px 0;
+}
 
 .cart-row-total {
   text-align: right;

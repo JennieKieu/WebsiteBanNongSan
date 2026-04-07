@@ -49,7 +49,7 @@ const ALL_ORDER_STATUSES = [
 
 // ─── Handlers ─────────────────────────────────────────────────────────────────
 
-exports.publicCoupons = asyncHandler(async (_req, res) => {
+exports.publicCoupons = asyncHandler(async (req, res) => {
   const now = new Date();
   const coupons = await Coupon.find({
     isActive: true,
@@ -57,10 +57,30 @@ exports.publicCoupons = asyncHandler(async (_req, res) => {
     endAt: { $gte: now },
     $expr: { $lt: ["$usedCount", "$usageLimit"] },
   })
-    .select("code discountType discountValue minOrderValue endAt")
+    .select("code discountType discountValue minOrderValue endAt perUserLimit")
     .sort({ endAt: 1 })
     .lean();
-  res.json({ data: coupons });
+
+  if (!req.user || !coupons.length) {
+    return res.json({ data: coupons.map(({ perUserLimit: _, ...c }) => c) });
+  }
+
+  /* Đếm số lần mỗi coupon đã được dùng bởi user này */
+  const couponIds = coupons.map((c) => c._id);
+  const usages = await CouponUsage.aggregate([
+    { $match: { couponId: { $in: couponIds }, userId: req.user._id } },
+    { $group: { _id: "$couponId", count: { $sum: 1 } } },
+  ]);
+  const usageMap = Object.fromEntries(usages.map((u) => [u._id.toString(), u.count]));
+
+  const filtered = coupons
+    .filter((c) => {
+      const used = usageMap[c._id.toString()] || 0;
+      return used < (c.perUserLimit ?? 2);
+    })
+    .map(({ perUserLimit: _, ...c }) => c);
+
+  res.json({ data: filtered });
 });
 
 exports.placeOrder = asyncHandler(async (req, res) => {
