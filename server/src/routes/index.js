@@ -93,8 +93,8 @@ admin.post("/check-expiry-notifications", notificationCtrl.triggerExpiryCheck);
 
 admin.get("/products/:id", productCtrl.adminProductById);
 admin.get("/products", adminCrudFactory(Product));
-admin.post("/products", productValidator, validate, adminCrudFactory(Product));
-admin.put("/products/:id", adminCrudFactory(Product));
+admin.post("/products", productValidator, validate, productCtrl.adminCreateProduct);
+admin.put("/products/:id", productCtrl.adminUpdateProduct);
 admin.delete("/products/:id", adminCrudFactory(Product));
 
 admin.get("/categories", adminCrudFactory(Category));

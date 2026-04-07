@@ -79,30 +79,28 @@ const productSchema = new mongoose.Schema(
   { timestamps: true }
 );
 
-productSchema.pre("save", function (next) {
+productSchema.pre("save", async function () {
   this.nameNormalized = removeVietnameseTones(this.name || "");
   this.supplierNormalized = removeVietnameseTones(this.supplier || "");
   this.descriptionNormalized = removeVietnameseTones(this.description || "");
   this.certificationsSearch = certificationsSearchFold(this.certifications || []);
-  next();
 });
 
-productSchema.pre(["findOneAndUpdate", "updateOne"], function (next) {
+productSchema.pre(["findOneAndUpdate", "updateOne"], async function () {
   const update = this.getUpdate();
-  if (!update || typeof update !== "object") return next();
+  if (!update || typeof update !== "object") return;
   const plain = update.$set != null ? { ...update.$set } : { ...update };
   const extra = {};
   if (plain.name !== undefined) extra.nameNormalized = removeVietnameseTones(String(plain.name));
   if (plain.supplier !== undefined) extra.supplierNormalized = removeVietnameseTones(String(plain.supplier));
   if (plain.description !== undefined) extra.descriptionNormalized = removeVietnameseTones(String(plain.description));
   if (plain.certifications !== undefined) extra.certificationsSearch = certificationsSearchFold(plain.certifications);
-  if (Object.keys(extra).length === 0) return next();
+  if (Object.keys(extra).length === 0) return;
   if (update.$set != null) {
     this.setUpdate({ ...update, $set: { ...update.$set, ...extra } });
   } else {
     this.setUpdate({ ...update, $set: { ...plain, ...extra } });
   }
-  next();
 });
 
 const productBatchSchema = new mongoose.Schema(

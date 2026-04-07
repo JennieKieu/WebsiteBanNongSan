@@ -220,3 +220,31 @@ exports.adminProductById = asyncHandler(async (req, res) => {
   const availableStock = await getAvailableStock(product._id);
   res.json({ data: { ...product, batches, availableStock } });
 });
+
+/** Không cho hai sản phẩm cùng tên (sau trim, không phân biệt hoa thường). */
+async function assertProductNameUnique(name, excludeId) {
+  const trimmed = cleanText(name);
+  if (!trimmed) return;
+  const rx = new RegExp(`^${escapeRegex(trimmed)}$`, "i");
+  const filter = { name: { $regex: rx } };
+  if (excludeId && mongoose.Types.ObjectId.isValid(String(excludeId))) {
+    filter._id = { $ne: new mongoose.Types.ObjectId(String(excludeId)) };
+  }
+  const dup = await Product.findOne(filter).select("_id").lean();
+  if (dup) throw new AppError("DUPLICATE_NAME", "Tên sản phẩm đã tồn tại", 409);
+}
+
+exports.adminCreateProduct = asyncHandler(async (req, res) => {
+  await assertProductNameUnique(req.body.name);
+  const data = await Product.create(req.body);
+  res.status(201).json({ data });
+});
+
+exports.adminUpdateProduct = asyncHandler(async (req, res) => {
+  if (req.body.name !== undefined) {
+    await assertProductNameUnique(req.body.name, req.params.id);
+  }
+  const data = await Product.findByIdAndUpdate(req.params.id, req.body, { new: true });
+  if (!data) throw new AppError("NOT_FOUND", "Không tìm thấy sản phẩm", 404);
+  res.json({ data });
+});

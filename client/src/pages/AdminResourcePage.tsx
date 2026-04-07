@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { Link, useLocation } from "react-router-dom";
+import toast from "react-hot-toast";
 import {
   HiOutlineInboxStack,
   HiOutlinePencilSquare,
@@ -334,7 +335,7 @@ export default function AdminResourcePage() {
       reload();
     } catch (err: unknown) {
       const ax = err as { response?: { data?: { message?: string } } };
-      setErrMsg(ax.response?.data?.message || "Lưu sản phẩm thất bại");
+      toast.error(ax.response?.data?.message || "Lưu sản phẩm thất bại");
     } finally {
       setSaving(false);
     }
