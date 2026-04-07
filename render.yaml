@@ -56,7 +56,6 @@ services:
   - type: web
     name: naturalstore
     runtime: static
-    region: singapore
     rootDir: client
     buildCommand: npm install && npm run build
     staticPublishPath: ./client/dist
