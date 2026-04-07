@@ -303,7 +303,6 @@ const couponUsageSchema = new mongoose.Schema(
 );
 
 const User = mongoose.model("User", userSchema);
-const Address = mongoose.model("Address", addressSchema);
 const OtpVerification = mongoose.model("OtpVerification", otpVerificationSchema);
 const Category = mongoose.model("Category", categorySchema);
 const Product = mongoose.model("Product", productSchema);
@@ -322,7 +321,6 @@ const Notification = mongoose.model("Notification", notificationSchema);
 
 module.exports = {
   User,
-  Address,
   OtpVerification,
   Category,
   Product,
