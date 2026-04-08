@@ -56,6 +56,39 @@ exports.register = asyncHandler(async (req, res) => {
   });
 });
 
+/** Gửi lại OTP đăng ký (email chưa có tài khoản) */
+exports.resendVerifyOtp = asyncHandler(async (req, res) => {
+  const email = cleanText(req.body.email)?.toLowerCase();
+  if (!email) throw new AppError("VALIDATION_ERROR", "Vui lòng nhập email", 422);
+
+  const existed = await User.findOne({ email });
+  if (existed) throw new AppError("EMAIL_EXISTS", "Email đã được đăng ký. Vui lòng đăng nhập.", 409);
+
+  const otp = String(Math.floor(100000 + Math.random() * 900000));
+  await OtpVerification.deleteMany({ email, type: "VERIFY_EMAIL" });
+  await OtpVerification.create({
+    email,
+    otp,
+    type: "VERIFY_EMAIL",
+    expiresAt: new Date(Date.now() + 10 * 60 * 1000),
+  });
+
+  try {
+    await sendVerifyOtp(email, otp);
+  } catch (mailErr) {
+    console.error("[Email] Gửi lại OTP xác thực thất bại:", {
+      code: mailErr.code,
+      responseCode: mailErr.responseCode,
+      message: mailErr.message,
+    });
+    await OtpVerification.deleteMany({ email, type: "VERIFY_EMAIL" });
+    const info = getSmtpFailureInfo(mailErr);
+    throw new AppError(info.code, info.message, info.status);
+  }
+
+  res.json({ message: "Mã OTP mới đã được gửi tới email của bạn." });
+});
+
 exports.verifyOtp = asyncHandler(async (req, res) => {
   const name = cleanText(req.body.name);
   const email = cleanText(req.body.email)?.toLowerCase();

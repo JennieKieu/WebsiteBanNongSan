@@ -19,6 +19,7 @@ export default function LoginPage() {
   const [step, setStep] = useState<Step>("auth");
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
+  const [resendLoading, setResendLoading] = useState(false);
 
   async function handleAuth(e: React.FormEvent) {
     e.preventDefault();
@@ -103,6 +104,40 @@ export default function LoginPage() {
     }
   }
 
+  async function handleResendVerifyOtp() {
+    if (!email) return;
+    setError("");
+    setResendLoading(true);
+    try {
+      await http.post("/auth/resend-verify-otp", { email });
+      toast.success("Đã gửi lại mã OTP tới email của bạn.");
+      setOtp("");
+    } catch (err: any) {
+      const msg = err.response?.data?.message || "Không gửi được OTP, vui lòng thử lại.";
+      setError(msg);
+      toast.error(msg);
+    } finally {
+      setResendLoading(false);
+    }
+  }
+
+  async function handleResendResetOtp() {
+    if (!email) return;
+    setError("");
+    setResendLoading(true);
+    try {
+      await http.post("/auth/forgot-password", { email });
+      toast.success("Đã gửi lại mã OTP đặt lại mật khẩu.");
+      setOtp("");
+    } catch (err: any) {
+      const msg = err.response?.data?.message || "Không gửi được OTP, vui lòng thử lại.";
+      setError(msg);
+      toast.error(msg);
+    } finally {
+      setResendLoading(false);
+    }
+  }
+
   // ── Step: Xác minh OTP đăng ký (chỉ nhập OTP — họ tên/mật khẩu lấy từ bước đăng ký trong bộ nhớ) ──
   if (step === "verify") {
     return (
@@ -125,7 +160,14 @@ export default function LoginPage() {
             />
           </div>
           <button className="btn" disabled={loading}>{loading ? "Đang xác minh..." : "Xác minh"}</button>
-          <div className="auth-toggle">
+          <div className="auth-toggle" style={{ flexWrap: "wrap", gap: 8 }}>
+            <button
+              type="button"
+              disabled={resendLoading || loading}
+              onClick={handleResendVerifyOtp}
+            >
+              {resendLoading ? "Đang gửi..." : "Gửi lại mã OTP"}
+            </button>
             <button type="button" onClick={() => { setStep("auth"); setError(""); }}>← Quay lại</button>
           </div>
         </form>
@@ -193,8 +235,15 @@ export default function LoginPage() {
             />
           </div>
           <button className="btn" disabled={loading}>{loading ? "Đang xử lý..." : "Đặt lại mật khẩu"}</button>
-          <div className="auth-toggle">
-            <button type="button" onClick={() => { setStep("forgot"); setError(""); }}>← Gửi lại mã OTP</button>
+          <div className="auth-toggle" style={{ flexWrap: "wrap", gap: 8 }}>
+            <button
+              type="button"
+              disabled={resendLoading || loading}
+              onClick={handleResendResetOtp}
+            >
+              {resendLoading ? "Đang gửi..." : "Gửi lại mã OTP"}
+            </button>
+            <button type="button" onClick={() => { setStep("forgot"); setError(""); }}>← Đổi email khác</button>
           </div>
         </form>
       </div>

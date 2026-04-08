@@ -20,6 +20,7 @@ const validate = require("../middlewares/validate");
 const { auth, optionalAuth, requireRole } = require("../middlewares/auth");
 const {
   registerValidator,
+  resendVerifyOtpValidator,
   loginValidator,
   verifyOtpValidator,
   productValidator,
@@ -39,6 +40,12 @@ router.get("/health", authCtrl.health);
 
 // ─── Auth ─────────────────────────────────────────────────────────────────────
 router.post("/auth/register", registerValidator, validate, authCtrl.register);
+router.post(
+  "/auth/resend-verify-otp",
+  resendVerifyOtpValidator,
+  validate,
+  authCtrl.resendVerifyOtp
+);
 router.post("/auth/verify-otp", verifyOtpValidator, validate, authCtrl.verifyOtp);
 router.post("/auth/login", loginValidator, validate, authCtrl.login);
 router.post("/auth/refresh-token", authCtrl.refreshToken);
