@@ -53,12 +53,14 @@ Dán vào biến `MONGODB_URI` trên Render.
 
 ---
 
-## Gửi email OTP — SMTP trước, Mailjet dự phòng
+## Gửi email OTP — Mailjet trước (mặc định trên Render)
 
-API **thử SMTP trước**; nếu SMTP lỗi (timeout trên Render…) và bạn đã cấu hình **Mailjet**, hệ thống **tự gửi lại qua Mailjet**.  
-Chỉ cần **một** trong hai cũng chạy được; nên có **cả hai** trên production (SMTP dev local + Mailjet khi SMTP fail).
+Trên Render, **SMTP Gmail thường treo rất lâu** (timeout 30–60s) nên request đăng ký có thể **hết thời gian** trước khi kịp chuyển sang Mailjet.  
+Code **mặc định gửi Mailjet trước** khi đã cấu hình `MAILJET_*`; SMTP chỉ làm **dự phòng** khi Mailjet lỗi.
 
-### SMTP Gmail (local hoặc khi không dùng Mailjet)
+- Muốn **SMTP trước rồi Mailjet** (ví dụ test local có cả hai): đặt `EMAIL_SMTP_FIRST=true`.
+
+### SMTP Gmail (local hoặc dự phòng)
 
 | Biến | Giá trị |
 |------|---------|

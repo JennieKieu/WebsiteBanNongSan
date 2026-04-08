@@ -74,6 +74,13 @@ async function sendViaMailjet({ to, subject, html }) {
       e.status = res.status;
       throw e;
     }
+    if (data.Messages?.[0]?.Status === "error") {
+      const msgs = data.Messages?.[0]?.Errors || [];
+      const msg = (Array.isArray(msgs) && msgs[0]?.ErrorMessage) || "Mailjet từ chối gửi";
+      const e = new Error(String(msg));
+      e.code = "EMAILJET";
+      throw e;
+    }
   } finally {
     clearTimeout(timer);
   }
@@ -148,34 +155,53 @@ async function sendViaSmtp({ to, subject, html }) {
 }
 
 /**
- * Thứ tự: SMTP trước; nếu SMTP lỗi và có Mailjet thì gửi Mailjet.
- * Chỉ có Mailjet (không SMTP): gửi Mailjet.
+ * Mặc định: Mailjet trước (HTTPS, ổn trên Render). SMTP Gmail trên cloud thường treo 30–60s → request timeout trước khi fallback.
+ * EMAIL_SMTP_FIRST=true: thử SMTP trước, lỗi thì Mailjet (phù hợp máy local có cả hai).
  */
 async function deliverTransactionalMail({ to, subject, html }) {
   const smtpOk = usesSmtp();
   const mjOk = usesMailjet();
 
-  if (smtpOk) {
+  if (!smtpOk && !mjOk) {
+    const err = new Error("Chưa cấu hình gửi email.");
+    err.code = "SMTP_NOT_CONFIGURED";
+    throw err;
+  }
+
+  const preferSmtpFirst = env.emailSmtpFirst && smtpOk && mjOk;
+
+  if (preferSmtpFirst) {
     try {
       await sendViaSmtp({ to, subject, html });
       return;
     } catch (e) {
       resetTransporter();
-      if (mjOk) {
-        console.warn("[Email] SMTP thất bại, thử Mailjet:", e.message);
-        await sendViaMailjet({ to, subject, html });
-        return;
+      console.warn("[Email] SMTP thất bại, thử Mailjet:", e.message);
+      await sendViaMailjet({ to, subject, html });
+      return;
+    }
+  }
+
+  if (mjOk) {
+    try {
+      await sendViaMailjet({ to, subject, html });
+      return;
+    } catch (e) {
+      if (smtpOk) {
+        console.warn("[Email] Mailjet thất bại, thử SMTP:", e.message);
+        try {
+          await sendViaSmtp({ to, subject, html });
+          return;
+        } catch (smtpErr) {
+          resetTransporter();
+          throw smtpErr;
+        }
       }
       throw e;
     }
   }
-  if (mjOk) {
-    await sendViaMailjet({ to, subject, html });
-    return;
-  }
-  const err = new Error("Chưa cấu hình gửi email.");
-  err.code = "SMTP_NOT_CONFIGURED";
-  throw err;
+
+  await sendViaSmtp({ to, subject, html });
 }
 
 function htmlVerifyOtp(otp) {

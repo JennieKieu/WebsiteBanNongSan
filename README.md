@@ -59,7 +59,7 @@ E-commerce nông sản gồm `server` (Express + MongoDB) và `client` (React + 
   - **Backend:** **Express.js** 5 (REST API) — không dùng NestJS.
 - **Cơ sở dữ liệu:** **MongoDB** (ODM **Mongoose**); có thể dùng MongoDB Atlas trên cloud hoặc MongoDB cài local.
 - **Lưu trữ media:** **Cloudinary** (ảnh sản phẩm, banner, v.v.).
-- **Dịch vụ tích hợp (tùy cấu hình):** gửi email OTP (SMTP Gmail trước, **Mailjet** dự phòng), chatbot (**OpenAI** API khi bật `AI_PROVIDER=openai`).
+- **Dịch vụ tích hợp (tùy cấu hình):** gửi email OTP (**Mailjet** trước khi deploy; SMTP dự phòng; `EMAIL_SMTP_FIRST=true` để đảo thứ tự), chatbot (**OpenAI** API khi bật `AI_PROVIDER=openai`).
 - **Công cụ lập trình:** VS Code (hoặc IDE tương đương).
 - **Công cụ phân tích / thiết kế phần mềm:** Visual Paradigm (hoặc công cụ UML tương đương).
 - **Hệ điều hành:** Windows (hoặc macOS / Linux để dev).

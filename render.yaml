@@ -43,7 +43,7 @@ services:
         sync: false
       - key: AI_MODEL
         value: gpt-4o-mini
-      # ── Gửi mail: SMTP trước, Mailjet fallback khi SMTP lỗi ───────────────────
+      # ── Gửi mail: Mailjet trước (deploy). EMAIL_SMTP_FIRST=true = SMTP trước ───
       - key: MAILJET_API_KEY
         sync: false
       - key: MAILJET_SECRET_KEY

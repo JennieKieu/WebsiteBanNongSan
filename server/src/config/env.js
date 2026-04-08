@@ -16,7 +16,10 @@ const env = {
   smtpPort: Number(process.env.SMTP_PORT || 587),
   smtpUser: process.env.SMTP_USER || "",
   smtpPass: process.env.SMTP_PASS || "",
-  /** Gửi mail: thử SMTP trước; lỗi thì Mailjet nếu đã cấu hình MAILJET_* */
+  /**
+   * Gửi mail: mặc định Mailjet trước (ổn trên Render). Đặt EMAIL_SMTP_FIRST=true để thử SMTP trước rồi mới Mailjet.
+   */
+  emailSmtpFirst: (process.env.EMAIL_SMTP_FIRST || "").trim() === "true",
   mailjetApiKey: (process.env.MAILJET_API_KEY || "").trim(),
   mailjetSecretKey: (process.env.MAILJET_SECRET_KEY || "").trim(),
   mailjetSenderName: (process.env.MAILJET_SENDER_NAME || "Natural Store").trim(),
