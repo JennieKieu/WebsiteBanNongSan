@@ -415,7 +415,7 @@ export default function AdminReportsPage() {
 
       {/* Top Products */}
       <div className="card report-section">
-        <h3>Top 10 sản phẩm bán chạy</h3>
+        <h3>Top 10 theo doanh thu</h3>
         {f.topProducts.length === 0 ? (
           <p className="text-muted">Chưa có dữ liệu</p>
         ) : (
